@@ -1,4 +1,5 @@
 ﻿using BenchmarkDotNet.Attributes;
+using FuzzySharp.Extractor;
 using FuzzySharp.PreProcess;
 
 namespace FuzzySharp.Benchmarks;
@@ -88,5 +89,32 @@ public class BenchmarkAll
     public int PartialTokenAbbreviationRatio()
     {
         return Fuzz.PartialTokenAbbreviationRatio("bl 420", "Baseline section 420", PreprocessMode.Full);
+    }
+
+    private static readonly string[][] Events =
+    [
+        ["chicago cubs vs new york mets", "CitiField", "2011-05-11", "8pm"],
+        ["new york yankees vs boston red sox", "Fenway Park", "2011-05-11", "8pm"],
+        ["atlanta braves vs pittsburgh pirates", "PNC Park", "2011-05-11", "8pm"]
+    ];
+
+    private static readonly string[] Query = ["new york mets vs chicago cubs", "CitiField", "2017-03-19", "8pm"];
+
+    [Benchmark]
+    public ExtractedResult<string[]> ExtractOne()
+    {
+        return Process.ExtractOne(Query, Events, static strings => strings[0]);
+    }
+
+    [Benchmark]
+    public int LevenshteinDistance()
+    {
+        return Levenshtein.EditDistance("chicago cubs vs new york mets".AsSpan(), "new york mets vs chicago cubs".AsSpan());
+    }
+
+    [Benchmark]
+    public int FastenshteinDistance()
+    {
+        return Fastenshtein.Levenshtein.Distance("chicago cubs vs new york mets", "new york mets vs chicago cubs");
     }
 }

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Fastenshtein" Version="1.0.10" />
   </ItemGroup>
 
   <ItemGroup>
