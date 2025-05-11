@@ -176,6 +176,16 @@ namespace Raffinert.FuzzySharp.Test.FuzzyTests
         }
 
         [Test]
+        [TestCase("sh")]
+        [TestCase("shop")]
+        public void Test01(string query)
+        {
+            var ratio = Fuzz.PartialRatio(query, "Growing eshops without a popular platform", PreprocessMode.Full);
+
+            Assert.True(ratio == 100);
+        }
+
+        [Test]
         public void TestRatioUnicodeString()
         {
             _s1 = "\u00C1";

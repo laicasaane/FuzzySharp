@@ -123,19 +123,6 @@ namespace Raffinert.FuzzySharp
 
             while (i > 0 || j > 0)
             {
-                if (i != 0 && j != 0 && matrix[ptr] == matrix[ptr - len2 - 1]
-                    && c1[p1 + i - 1].Equals(c2[p2 + j - 1]))
-                {
-
-                    i--;
-                    j--;
-                    ptr -= len2 + 1;
-                    dir = 0;
-
-                    continue;
-
-                }
-
                 if (dir < 0 && j != 0 && matrix[ptr] == matrix[ptr - 1] + 1)
                 {
 
@@ -162,6 +149,19 @@ namespace Raffinert.FuzzySharp
                     eop.SourcePos = --i + o1;
                     eop.DestPos = j + o2;
                     ptr -= len2;
+
+                    continue;
+
+                }
+
+                if (i != 0 && j != 0 && matrix[ptr] == matrix[ptr - len2 - 1]
+                    && c1[p1 + i - 1].Equals(c2[p2 + j - 1]))
+                {
+
+                    i--;
+                    j--;
+                    ptr -= len2 + 1;
+                    dir = 0;
 
                     continue;
 
@@ -229,9 +229,7 @@ namespace Raffinert.FuzzySharp
         // Special Case
         public static MatchingBlock[] GetMatchingBlocks(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
         {
-
             return GetMatchingBlocks(s1.Length, s2.Length, GetEditOps(s1, s2));
-
         }
 
 
@@ -327,8 +325,6 @@ namespace Raffinert.FuzzySharp
 
             while (i > 0)
             {
-
-
                 while (ops[o].EditType == EditType.KEEP && --i != 0)
                 {
                     o++;
