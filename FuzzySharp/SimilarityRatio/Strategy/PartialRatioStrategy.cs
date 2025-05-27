@@ -1,5 +1,8 @@
-﻿using System;
-using Raffinert.FuzzySharp.Edits;
+﻿using Raffinert.FuzzySharp.Edits;
+using Raffinert.FuzzySharp.Utils;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
 {
@@ -12,49 +15,44 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
                 return 0;
             }
 
-            ReadOnlySpan<char> shorter;
-            ReadOnlySpan<char> longer;
+            
+            ReadOnlySpan<char> shorter = input1.AsSpan();
+            ReadOnlySpan<char> longer = input2.AsSpan();
 
-            if (input1.Length < input2.Length)
-            {
-                shorter = input1.AsSpan();
-                longer  = input2.AsSpan();
-            }
-            else
-            {
-                shorter = input2.AsSpan();
-                longer  = input1.AsSpan();
-            }
+            SequenceUtils.SwapIfSourceIsLonger(ref shorter, ref longer);
 
-            MatchingBlock[] matchingBlocks = Levenshtein.GetMatchingBlocks(shorter, longer);
+            var ratio1 = Fuzz1.PartialRatio(shorter, longer);
+            return (int)Math.Round(ratio1);
 
-            double maxScore = 0;
+            //MatchingBlock[] matchingBlocks = Levenshtein.GetMatchingBlocks(shorter, longer);
 
-            foreach (var matchingBlock in matchingBlocks)
-            {
-                int dist = matchingBlock.DestPos - matchingBlock.SourcePos;
+            //double maxScore = 0;
 
-                int longStart = dist > 0 ? dist : 0;
-                int longEnd   = longStart + shorter.Length;
+            //foreach (var matchingBlock in matchingBlocks)
+            //{
+            //    int dist = matchingBlock.DestPos - matchingBlock.SourcePos;
 
-                if (longEnd > longer.Length) longEnd = longer.Length;
+            //    int longStart = dist > 0 ? dist : 0;
+            //    int longEnd   = longStart + shorter.Length;
 
-                var longSubstr = longer[longStart..longEnd];
+            //    if (longEnd > longer.Length) longEnd = longer.Length;
 
-                double ratio = Levenshtein.GetRatio(shorter, longSubstr);
+            //    var longSubstr = longer[longStart..longEnd];
 
-                if (ratio > .995)
-                {
-                    return 100;
-                }
+            //    double ratio = Levenshtein.GetRatio(shorter, longSubstr);
 
-                if (ratio > maxScore)
-                {
-                    maxScore = ratio;
-                }
-            }
+            //    if (ratio > .995)
+            //    {
+            //        return 100;
+            //    }
 
-            return (int)Math.Round(100 * maxScore);
+            //    if (ratio > maxScore)
+            //    {
+            //        maxScore = ratio;
+            //    }
+            //}
+
+            //return (int)Math.Round(100 * maxScore);
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using Raffinert.FuzzySharp.Edits;
+using Raffinert.FuzzySharp.Utils;
 
 namespace Raffinert.FuzzySharp
 {
@@ -662,6 +663,8 @@ namespace Raffinert.FuzzySharp
         public static int EditDistance<T>(ReadOnlySpan<T> c1, ReadOnlySpan<T> c2, int xcost = 0) where T:  IEquatable<T>
         {
 
+            return NewLevenshtein.Distance(c1, c2, 1, 1, xcost == 0 ? 1 : 2);
+            
             int i;
             int half;
 

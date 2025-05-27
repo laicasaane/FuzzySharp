@@ -37,4 +37,15 @@
 		<None Include="../README.md" pack="true" PackagePath="." />
 	</ItemGroup>
 
+	<ItemGroup>
+		<PackageReference Include="Meziantou.Polyfill" Version="1.0.48">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<PropertyGroup>
+		<MeziantouPolyfill_IncludedPolyfills>M:System.Collections.Generic.CollectionExtensions.GetValueOrDefault</MeziantouPolyfill_IncludedPolyfills>
+	</PropertyGroup>
+
 </Project>
