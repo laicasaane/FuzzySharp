@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Raffinert.FuzzySharp.Edits;
 
 namespace Raffinert.FuzzySharp;
 
@@ -539,6 +540,460 @@ public static class NewLevenshtein
         int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
         double? scoreCutoff = null)
         => NormalizedSimilarity(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
+
+
+    /// <summary>
+    /// High‐level dispatcher you just asked for: computes the edit‐ops
+    /// by slicing off common prefixes/suffixes, running the bit-parallel
+    /// matrix, then backtracking.
+    /// </summary>
+    /// <param name="s1">Source sequence.</param>
+    /// <param name="s2">Destination sequence.</param>
+    /// <param name="processor">Optional preprocessor (e.g. to normalize).</param>
+    /// <param name="scoreHint">Ignored here—only used internally for dispatch in Python.</param>
+    public static EditOp[] GetEditOps(
+        string s1,
+        string s2,
+        Func<string, string> processor = null,
+        int? scoreHint = null
+    )
+    {
+        // 1) Optional preprocessing
+        if (processor != null)
+        {
+            s1 = processor(s1);
+            s2 = processor(s2);
+        }
+
+        var s1Span = s1.AsSpan();
+        var s2Span = s2.AsSpan();
+        
+        // 2) For strings, conv_sequences is identity
+        //    (for more general sequences you'd map items to ints)
+        // 3) Strip off common prefix+suffix
+        var (prefixLen, suffixLen) = SequenceUtils.TrimIfNeeded(ref s1Span, ref s2Span);
+
+        // 4) Run the bit-parallel matrix
+        var (dist, VPblocks, VNblocks) = Matrix(s1Span, s2Span);
+
+        // 5) Initialize backtracking
+        int originalDist = dist;
+        var opsArray = new EditOp[originalDist];
+        int col = s1Span.Length;
+        int row = s2Span.Length;
+        int nextIndex = originalDist; // we’ll decrement before placing
+
+        // 6) If no edits, we’re done
+        if (originalDist == 0)
+            return [];
+
+        // 7) Backtrack
+        while (row > 0 && col > 0)
+        {
+            // determine which block & bit offset holds the (col-1) bit
+            int bitPos = col - 1;
+            int blk = bitPos / 64;
+            int off = bitPos % 64;
+            ulong bit = 1UL << off;
+
+            // deletion?
+            if ((VPblocks[row - 1][blk] & bit) != 0)
+            {
+                nextIndex--;
+                col--;
+                opsArray[nextIndex] = new EditOp
+                {
+                    EditType = EditType.DELETE,
+                    SourcePos = col + prefixLen,
+                    DestPos = row + prefixLen
+                };
+            }
+            else
+            {
+                row--;
+                // insertion?
+                if (row > 0 && (VNblocks[row - 1][blk] & bit) != 0)
+                {
+                    nextIndex--;
+                    opsArray[nextIndex] = new EditOp
+                    {
+                        EditType = EditType.INSERT,
+                        SourcePos = col + prefixLen,
+                        DestPos = row + prefixLen
+                    };
+                }
+                else
+                {
+                    // move diagonally
+                    col--;
+                    // replace?
+                    if (s1Span[col] != s2Span[row])
+                    {
+                        nextIndex--;
+                        opsArray[nextIndex] = new EditOp
+                        {
+                            EditType = EditType.REPLACE,
+                            SourcePos = col + prefixLen,
+                            DestPos = row + prefixLen
+                        };
+                    }
+                }
+            }
+        }
+
+        // any remaining deletes
+        while (col > 0)
+        {
+            nextIndex--;
+            col--;
+            opsArray[nextIndex] = new EditOp
+            {
+                EditType = EditType.DELETE,
+                SourcePos = col + prefixLen,
+                DestPos = row + prefixLen
+            };
+        }
+        // any remaining inserts
+        while (row > 0)
+        {
+            nextIndex--;
+            row--;
+            opsArray[nextIndex] = new EditOp
+            {
+                EditType = EditType.INSERT,
+                SourcePos = col + prefixLen,
+                DestPos = row + prefixLen
+            };
+        }
+
+        return opsArray;
+    }
+
+    /// <summary>
+    /// Dispatcher that picks the single‐word or multi‐word matrix.  
+    /// Returns per‐character VP/VN block arrays.
+    /// </summary>
+    private static (int Distance, List<ulong[]> VP, List<ulong[]> VN)
+        Matrix(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    {
+        return s1.Length <= 64 
+            ? MatrixSingleMachineWord(s1, s2) 
+            : MatrixMultipleMachineWords(s1, s2);
+    }
+
+    /// <summary>
+    /// Computes the Myers bit-parallel VP/VN matrices and final edit distance using 64-bit words.
+    /// </summary>
+    /// <param name="s1">Pattern (must be ≤ 64 chars).</param>
+    /// <param name="s2">Text.</param>
+    /// <returns>
+    /// (Distance, VP-list, VN-list)
+    /// </returns>
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    {
+        if (s1.IsEmpty)
+            return (s2.Length, [], []);
+
+        if (s1.Length > 64)
+            throw new ArgumentException("Pattern too long for 64-bit bit-parallel algorithm.", nameof(s1));
+
+        // Initial bitmasks
+        ulong VP = (1UL << s1.Length) - 1;
+        ulong VN = 0;
+        int currDist = s1.Length;
+        ulong mask = 1UL << (s1.Length - 1);
+
+        // Build the “block” table: for each character in s1, which bit(s) it sets
+        var block = new Dictionary<char, ulong>();
+        ulong bit = 1UL;
+        foreach (char c in s1)
+        {
+            if (block.ContainsKey(c))
+                block[c] |= bit;
+            else
+                block[c] = bit;
+            bit <<= 1;
+        }
+
+        var matrixVP = new List<ulong[]>();
+        var matrixVN = new List<ulong[]>();
+
+        foreach (char c in s2)
+        {
+            block.TryGetValue(c, out ulong PMj);
+
+            // Step 1: D0 = (((PMj & VP) + VP) ^ VP) | PMj | VN
+            // Use unchecked so addition wraps modulo 2^64
+            ulong X = PMj;
+            ulong D0 = unchecked(((X & VP) + VP) ^ VP) | X | VN;
+
+            // Step 2: HP = VN | ~(D0 | VP);  HN = D0 & VP
+            ulong HP = VN | ~(D0 | VP);
+            ulong HN = D0 & VP;
+
+            // Step 3: adjust distance by looking at the high bit
+            if ((HP & mask) != 0) currDist++;
+            if ((HN & mask) != 0) currDist--;
+
+            // Step 4: shift and recompute VP, VN
+            HP = (HP << 1) | 1UL;
+            HN <<= 1;
+            VP = HN | ~(D0 | HP);
+            VN = HP & D0;
+
+            matrixVP.Add([VP]);
+            matrixVN.Add([VN]);
+        }
+
+        return (currDist, matrixVP, matrixVN);
+    }
+
+    /// <summary>
+    /// Computes the Myers bit‐parallel VP/VN matrices and final edit distance
+    /// for an arbitrary‐length pattern by slicing into 64‐bit blocks.
+    /// </summary>
+    /// <param name="pattern">The pattern string (any length).</param>
+    /// <param name="text">The text string to compare against.</param>
+    /// <returns>
+    /// A tuple containing:
+    /// 1) the final edit distance,
+    /// 2) the list of VP bit‐mask arrays (one array per text character),
+    /// 3) the list of VN bit‐mask arrays (one array per text character).
+    /// </returns>
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleMachineWords(ReadOnlySpan<char> pattern, ReadOnlySpan<char> text)
+    {
+        int m = pattern.Length;
+        if (m == 0)
+            return (text.Length, new List<ulong[]>(), new List<ulong[]>());
+
+        // Number of 64‐bit blocks needed to cover the pattern
+        int blocks = (m + 63) / 64;
+
+        // Initial VP = all 1s in those m bits, VN = 0
+        var VP = new ulong[blocks];
+        var VN = new ulong[blocks];
+        for (int i = 0; i < blocks; i++)
+        {
+            // For all but the last block, fill with 0xFFFFFFFFFFFFFFFF
+            // For the last block, only the low (m % 64) bits are 1
+            if (i < blocks - 1 || m % 64 == 0)
+                VP[i] = ulong.MaxValue;
+            else
+                VP[i] = (1UL << (m % 64)) - 1;
+            VN[i] = 0UL;
+        }
+
+        // Mask to extract the highest‐order bit of the full m‐bit vector
+        int lastBlk = blocks - 1;
+        int topBitPos = (m - 1) % 64;
+        ulong topBitMask = 1UL << topBitPos;
+
+        // Build the “block” table: for each character, which bit(s) in each block it sets
+        var blockTable = new Dictionary<char, ulong[]>();
+        for (int j = 0; j < m; j++)
+        {
+            char c = pattern[j];
+            int blk = j / 64, offset = j % 64;
+            if (!blockTable.TryGetValue(c, out var arr))
+            {
+                arr = new ulong[blocks];
+                blockTable[c] = arr;
+            }
+            arr[blk] |= 1UL << offset;
+        }
+
+        // A reusable zero‐mask for characters not in pattern
+        var zeroMask = new ulong[blocks];
+
+        int currDist = m;
+        var matrixVP = new List<ulong[]>();
+        var matrixVN = new List<ulong[]>();
+
+        // Temporary arrays for per‐character computation
+        var D0 = new ulong[blocks];
+        var HP = new ulong[blocks];
+        var HN = new ulong[blocks];
+        var X = new ulong[blocks];
+        var sum = new ulong[blocks];
+        var HPs = new ulong[blocks];
+        var HNs = new ulong[blocks];
+
+        // Process each character of the text
+        foreach (char c in text)
+        {
+            // 1) Load the pattern‐mask for c, or zeros if not present
+            blockTable.TryGetValue(c, out X);
+            if (X == null) X = zeroMask;
+
+            // 2) Compute D0 = (((X & VP) + VP) ^ VP) | X | VN
+            //    -> Must do a big‐integer add and carry across blocks
+            ulong carry = 0;
+            for (int b = 0; b < blocks; b++)
+            {
+                ulong Pv = VP[b];
+                ulong XandVP = X[b] & Pv;
+                // big‐integer add: XandVP + Pv + carry
+                ulong t = unchecked(XandVP + Pv);
+                ulong c1 = (t < XandVP) ? 1UL : 0UL;          // carry from first add
+                ulong t2 = unchecked(t + carry);
+                ulong c2 = (t2 < carry) ? 1UL : 0UL;           // carry from second add
+                carry = c1 | c2;
+
+                sum[b] = t2;
+                D0[b] = (sum[b] ^ Pv) | X[b] | VN[b];
+            }
+
+            // 3) HP = VN | ~(D0 | VP),   HN = D0 & VP
+            for (int b = 0; b < blocks; b++)
+            {
+                HP[b] = VN[b] | ~(D0[b] | VP[b]);
+                HN[b] = D0[b] & VP[b];
+            }
+
+            // 4) Update distance by inspecting the highest bit
+            if ((HP[lastBlk] & topBitMask) != 0) currDist++;
+            if ((HN[lastBlk] & topBitMask) != 0) currDist--;
+
+            // 5) Shift HP and HN left by one over the entire multi‐block vector
+            //    and set the low bit of HP[0] to 1
+            ulong carryHP = 1, carryHN = 0;
+            for (int b = 0; b < blocks; b++)
+            {
+                ulong hpb = HP[b], hnb = HN[b];
+                ulong newCarryHP = hpb >> 63;
+                ulong newCarryHN = hnb >> 63;
+                HPs[b] = (hpb << 1) | carryHP;
+                HNs[b] = hnb << 1;
+                carryHP = newCarryHP;
+                carryHN = newCarryHN;
+            }
+
+            // 6) Recompute VP, VN
+            for (int b = 0; b < blocks; b++)
+            {
+                VP[b] = HNs[b] | ~(D0[b] | HPs[b]);
+                VN[b] = HPs[b] & D0[b];
+            }
+
+            // 7) Keep a snapshot of VP/VN for this character
+            matrixVP.Add((ulong[])VP.Clone());
+            matrixVN.Add((ulong[])VN.Clone());
+        }
+
+        return (currDist, matrixVP, matrixVN);
+    }
+
+    //public static List<EditOp> GetEditOps(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    //{
+    //    int m = s1.Length;
+    //    int n = s2.Length;
+    //    var editOps = new List<EditOp>();
+
+    //    if (m == 0)
+    //    {
+    //        for (int j = 0; j < n; j++)
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.INSERT, SourcePos = 0, DestPos = j });
+    //        }
+
+    //        return editOps;
+    //    }
+    //    if (n == 0)
+    //    {
+    //        for (int i = 0; i < m; i++)
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.DELETE, SourcePos = i, DestPos = 0 });
+    //        }
+
+    //        return editOps;
+    //    }
+
+    //    // Only use bit-parallel for short strings
+    //    if (m > 64)
+    //    {
+    //        // fallback to classic DP for long strings
+    //        return GetEditOpsClassic(s1, s2);
+    //    }
+
+    //    // Build bit-parallel matrix
+    //    ulong[] PM = new ulong[256]; // ASCII only, for simplicity
+    //    for (int i = 0; i < 256; i++) PM[i] = 0;
+    //    for (int i = 0; i < m; i++)
+    //    {
+    //        char c = s1[i];
+    //        PM[c] |= 1UL << i;
+    //    }
+
+    //    int[,] matrix = new int[m + 1, n + 1];
+    //    for (int i = 0; i <= m; i++) matrix[i, 0] = i;
+    //    for (int j = 0; j <= n; j++) matrix[0, j] = j;
+
+    //    ulong VP = (1UL << m) - 1;
+    //    ulong VN = 0;
+    //    int currDist = m;
+
+    //    for (int j = 1; j <= n; j++)
+    //    {
+    //        ulong PM_j = s2[j - 1] < 256 ? PM[s2[j - 1]] : 0;
+    //        ulong X = PM_j | VN;
+    //        ulong D0 = (((X & VP) + VP) ^ VP) | X;
+    //        ulong HP = VN | ~(D0 | VP);
+    //        ulong HN = D0 & VP;
+
+    //        if ((HP & (1UL << (m - 1))) != 0) currDist++;
+    //        if ((HN & (1UL << (m - 1))) != 0) currDist--;
+
+    //        matrix[m, j] = currDist;
+
+    //        HP = (HP << 1) | 1;
+    //        HN <<= 1;
+    //        VP = HN | ~(D0 | HP);
+    //        VN = HP & D0;
+
+    //        // Fill rest of matrix for backtracking
+    //        for (int i = m - 1; i >= 1; i--)
+    //        {
+    //            int cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+    //            matrix[i, j] = Math.Min(
+    //                Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+    //                matrix[i - 1, j - 1] + cost
+    //            );
+    //        }
+    //    }
+
+    //    // Backtrack to get edit operations
+    //    int x = m, y = n;
+    //    while (x > 0 || y > 0)
+    //    {
+    //        if (x > 0 && y > 0 && matrix[x, y] == matrix[x - 1, y - 1] && s1[x - 1] == s2[y - 1])
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.EQUAL, SourcePos = x - 1, DestPos = y - 1 });
+    //            x--; y--;
+    //        }
+    //        else if (x > 0 && y > 0 && matrix[x, y] == matrix[x - 1, y - 1] + 1)
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.REPLACE, SourcePos = x - 1, DestPos = y - 1 });
+    //            x--; y--;
+    //        }
+    //        else if (x > 0 && matrix[x, y] == matrix[x - 1, y] + 1)
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.DELETE, SourcePos = x - 1, DestPos = y });
+    //            x--;
+    //        }
+    //        else if (y > 0 && matrix[x, y] == matrix[x, y - 1] + 1)
+    //        {
+    //            editOps.Add(new EditOp { EditType = EditType.INSERT, SourcePos = x, DestPos = y - 1 });
+    //            y--;
+    //        }
+    //        else
+    //        {
+    //            // Should not reach here
+    //            break;
+    //        }
+    //    }
+    //    editOps.Reverse();
+    //    return editOps;
+    //}
 
     //public static List<EditOp> EditOps(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
     //{

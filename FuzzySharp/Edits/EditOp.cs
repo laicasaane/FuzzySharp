@@ -9,7 +9,7 @@
         KEEP = 4,
     }
 
-    public class EditOp
+    public record EditOp
     {
         public EditType EditType { get; set; }
         public int SourcePos { get; set; }
