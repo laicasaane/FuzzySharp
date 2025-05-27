@@ -386,6 +386,7 @@ namespace Raffinert.FuzzySharp
             return !scoreCutoff.HasValue || normSim >= scoreCutoff.Value ? normSim : 0.0;
         }
 
+        //todo: reimplement like in NewLevenshtein for single and multiple machine words
         // Internal: builds LCS matrix of bitmasks for editops
         private static (int sim, List<ulong> matrix) Matrix<T>(
             ReadOnlySpan<T> s1,
