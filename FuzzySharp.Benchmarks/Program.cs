@@ -1,7 +1,7 @@
 ﻿using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
-using Raffinert.FuzzySharp.Benchmarks;
+
 //using Raffinert.FuzzySharp;
 //using Raffinert.FuzzySharp.SimilarityRatio;
 //using Raffinert.FuzzySharp.SimilarityRatio.Scorer.Composite;

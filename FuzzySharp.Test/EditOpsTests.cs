@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Raffinert.FuzzySharp.Edits;
 
 namespace Raffinert.FuzzySharp.Test
@@ -19,7 +14,7 @@ namespace Raffinert.FuzzySharp.Test
             string target = "sitting";
 
             // Act
-            var ops = NewLevenshtein.GetEditOps(source, target);
+            var ops = Levenshtein.GetEditOps(source, target);
 
             // Assert
             Assert.IsNotNull(ops);
@@ -46,7 +41,7 @@ namespace Raffinert.FuzzySharp.Test
             string target = "Woodpecker";
 
             // Act
-            var ops = NewLevenshtein.GetEditOps(source, target);
+            var ops = Levenshtein.GetEditOps(source, target);
             //var ops1 = Levenshtein.GetEditOps(source.AsSpan(), target.AsSpan());
 
             Assert.That(ops, Is.EquivalentTo(new[]

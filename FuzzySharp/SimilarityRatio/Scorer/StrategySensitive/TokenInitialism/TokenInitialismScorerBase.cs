@@ -21,7 +21,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive
                 longer  = input1;
             }
 
-            double lenRatio = ((double)longer.Length) / shorter.Length;
+            double lenRatio = (double)longer.Length / shorter.Length;
 
             // if longer isn't at least 3 times longer than the other, then it's probably not an initialism
             if (lenRatio < 3) return 0;

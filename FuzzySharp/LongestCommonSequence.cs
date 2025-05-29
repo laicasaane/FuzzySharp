@@ -148,7 +148,7 @@ namespace Raffinert.FuzzySharp
                 {
                     ulong sum = S[i] + u[i] + carry;
                     // carry if sum < S[i] or (carry==1 && sum==S[i])
-                    carry = (sum < S[i] || (carry == 1 && sum == S[i])) ? 1UL : 0UL;
+                    carry = sum < S[i] || (carry == 1 && sum == S[i]) ? 1UL : 0UL;
                     add[i] = sum;
                 }
 
@@ -159,7 +159,7 @@ namespace Raffinert.FuzzySharp
                 {
                     ulong diff = S[i] - u[i] - borrow;
                     // borrow if original S[i] < u[i] + borrow
-                    borrow = (S[i] < u[i] + borrow) ? 1UL : 0UL;
+                    borrow = S[i] < u[i] + borrow ? 1UL : 0UL;
                     sub[i] = diff;
                 }
 
@@ -192,7 +192,7 @@ namespace Raffinert.FuzzySharp
         public static int SimilarityMultipleMachineWords<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
-        Processor<T>? processor = null
+        Processor<T> processor = null
         ) where T : IEquatable<T>
         {
             // optional preprocessing
@@ -220,7 +220,7 @@ namespace Raffinert.FuzzySharp
                     arr = new ulong[segCount];
                     block[key] = arr;
                 }
-                arr[seg] |= (1UL << bit);
+                arr[seg] |= 1UL << bit;
             }
 
             // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
@@ -253,7 +253,7 @@ namespace Raffinert.FuzzySharp
                 {
                     ulong sum = S[i] + u[i] + carry;
                     // carry if sum < S[i] or (carry==1 && sum==S[i])
-                    carry = (sum < S[i] || (carry == 1 && sum == S[i])) ? 1UL : 0UL;
+                    carry = sum < S[i] || (carry == 1 && sum == S[i]) ? 1UL : 0UL;
                     add[i] = sum;
                 }
 
@@ -264,7 +264,7 @@ namespace Raffinert.FuzzySharp
                 {
                     ulong diff = S[i] - u[i] - borrow;
                     // borrow if original S[i] < u[i] + borrow
-                    borrow = (S[i] < u[i] + borrow) ? 1UL : 0UL;
+                    borrow = S[i] < u[i] + borrow ? 1UL : 0UL;
                     sub[i] = diff;
                 }
 
@@ -413,7 +413,7 @@ namespace Raffinert.FuzzySharp
                 return (0, new List<ulong[]>(s2.Length));
 
             int m = s1.Length;
-            ulong S = (m == WordSize) ? ulong.MaxValue : (1UL << m) - 1UL;
+            ulong S = m == WordSize ? ulong.MaxValue : (1UL << m) - 1UL;
 
             // build bit-mask
             var block = new Dictionary<T, ulong>();
@@ -532,7 +532,7 @@ namespace Raffinert.FuzzySharp
         private static int CountZeroBits(ulong x, int length)
         {
             // invert and mask
-            ulong inv = ~x & ((length == WordSize) ? ulong.MaxValue : (1UL << length) - 1UL);
+            ulong inv = ~x & (length == WordSize ? ulong.MaxValue : (1UL << length) - 1UL);
             return PopCount(inv);
         }
 

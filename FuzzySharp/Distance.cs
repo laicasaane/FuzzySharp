@@ -12,7 +12,7 @@ namespace Raffinert.FuzzySharp
         public int DestStart = destStart, DestEnd = destEnd;
     }
 
-    public static class Fuzz1
+    public static class Distance
     {
         /// <summary>
         /// Searches for the optimal alignment of the shorter span in the longer span
@@ -22,7 +22,7 @@ namespace Raffinert.FuzzySharp
         public static double PartialRatio<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
-            Processor<T>? processor = null,
+            Processor<T> processor = null,
             double? scoreCutoff = null
         ) where T : IEquatable<T>
         {
@@ -34,10 +34,10 @@ namespace Raffinert.FuzzySharp
         /// Searches for the optimal alignment of the shorter span in the longer span
         /// and returns a ScoreAlignment (with a score in [0…100]) or null if below cutoff.
         /// </summary>
-        public static ScoreAlignment? PartialRatioAlignment<T>(
+        private static ScoreAlignment? PartialRatioAlignment<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
-            Processor<T>? processor = null,
+            Processor<T> processor = null,
             double? scoreCutoff = null
         ) where T : IEquatable<T>
         {
@@ -116,7 +116,7 @@ namespace Raffinert.FuzzySharp
         /// Assumes s1.Length <= s2.Length.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ScoreAlignment PartialRatioImpl<T>(
+        private static ScoreAlignment PartialRatioImpl<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
             double? scoreCutoff = null
@@ -150,7 +150,7 @@ namespace Raffinert.FuzzySharp
             {
                 if (!charSet.Contains(s2[i - 1])) continue;
                 var slice = s2[..i];
-                double sim = BitParallelIndel.BlockNormalizedSimilarity(block, s1, slice);
+                double sim = Indel.BlockNormalizedSimilarity(block, s1, slice);
                 if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
                 {
                     res.Score = sim;
@@ -166,7 +166,7 @@ namespace Raffinert.FuzzySharp
             {
                 if (!charSet.Contains(s2[i + len1 - 1])) continue;
                 var window = s2[i..(i + len1)];
-                double sim = BitParallelIndel.BlockNormalizedSimilarity(block, s1, window);
+                double sim = Indel.BlockNormalizedSimilarity(block, s1, window);
                 if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
                 {
                     res.Score = sim;
@@ -182,7 +182,7 @@ namespace Raffinert.FuzzySharp
             {
                 if (!charSet.Contains(s2[i])) continue;
                 var tail = s2[i..];
-                double sim = BitParallelIndel.BlockNormalizedSimilarity(block, s1, tail);
+                double sim = Indel.BlockNormalizedSimilarity(block, s1, tail);
                 if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
                 {
                     res.Score = sim;
@@ -193,8 +193,8 @@ namespace Raffinert.FuzzySharp
                 }
             }
 
-            // Scale best [0..1] → [0..100]
             res.Score *= 100.0;
+            
             return res;
         }
     }

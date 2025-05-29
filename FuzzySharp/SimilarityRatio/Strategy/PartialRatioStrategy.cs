@@ -1,8 +1,5 @@
-﻿using Raffinert.FuzzySharp.Edits;
-using Raffinert.FuzzySharp.Utils;
+﻿using Raffinert.FuzzySharp.Utils;
 using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
 {
@@ -21,8 +18,8 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
 
             SequenceUtils.SwapIfSourceIsLonger(ref shorter, ref longer);
 
-            var ratio1 = Fuzz1.PartialRatio(shorter, longer);
-            return (int)Math.Round(ratio1);
+            var ratio = Distance.PartialRatio(shorter, longer);
+            return (int)Math.Round(ratio);
 
             //MatchingBlock[] matchingBlocks = Levenshtein.GetMatchingBlocks(shorter, longer);
 

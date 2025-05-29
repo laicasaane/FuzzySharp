@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-public static class BitParallelIndel
+public static class Indel
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Distance<T>(ReadOnlySpan<T> s1,

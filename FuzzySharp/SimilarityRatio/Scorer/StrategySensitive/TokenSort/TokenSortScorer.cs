@@ -5,6 +5,6 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive
 {
     public class TokenSortScorer : TokenSortScorerBase
     {
-        protected override Func<string, string, int> Scorer => DefaultRatioStrategy.Calculate;
+        protected override FuzzySharp.Scorer Scorer => DefaultRatioStrategy.Calculate;
     }
 }

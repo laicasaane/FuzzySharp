@@ -23,7 +23,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.Composite
             double partialScale = PARTIAL_SCALE;
 
             int    baseRatio = Fuzz.Ratio(input1, input2);
-            double lenRatio  = ((double) Math.Max(len1, len2)) / Math.Min(len1, len2);
+            double lenRatio  = (double) Math.Max(len1, len2) / Math.Min(len1, len2);
 
             // if strings are similar length don't use partials
             if (lenRatio < 1.5) tryPartials = false;

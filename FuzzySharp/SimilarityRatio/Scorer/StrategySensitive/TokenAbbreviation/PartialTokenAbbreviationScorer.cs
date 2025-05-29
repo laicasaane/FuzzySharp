@@ -5,6 +5,6 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive
 {
     public class PartialTokenAbbreviationScorer : TokenAbbreviationScorerBase
     {
-        protected override Func<string, string, int> Scorer => PartialRatioStrategy.Calculate;
+        protected override FuzzySharp.Scorer Scorer => PartialRatioStrategy.Calculate;
     }
 }
