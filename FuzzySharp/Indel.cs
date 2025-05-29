@@ -1,7 +1,8 @@
-﻿using Raffinert.FuzzySharp;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+
+namespace Raffinert.FuzzySharp;
 
 public static class Indel
 {
