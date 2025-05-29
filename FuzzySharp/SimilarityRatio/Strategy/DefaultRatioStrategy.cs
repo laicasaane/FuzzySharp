@@ -10,7 +10,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
             {
                 return 0;
             }
-            return (int)Math.Round(100 * Levenshtein.GetRatio(input1, input2));
+            return (int)Math.Round(100 * Indel.NormalizedSimilarity(input1.AsSpan(), input2.AsSpan()));
         }
     }
 }

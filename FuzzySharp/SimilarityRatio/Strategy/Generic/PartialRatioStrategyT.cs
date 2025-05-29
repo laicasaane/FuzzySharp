@@ -40,7 +40,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy.Generic
 
                 var longSubstr = longer.AsSpan()[longStart..longEnd];
 
-                double ratio = Levenshtein.GetRatio<T>(shorter.AsSpan(), longSubstr);
+                double ratio = Indel.NormalizedSimilarity(new ReadOnlySpan<T>(shorter), longSubstr);
 
                 if (ratio > .995)
                 {

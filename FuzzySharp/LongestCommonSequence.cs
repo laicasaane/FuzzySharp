@@ -10,6 +10,7 @@ namespace Raffinert.FuzzySharp
     {
         private const int WordSize = 64;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Similarity<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
