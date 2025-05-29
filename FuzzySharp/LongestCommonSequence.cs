@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Raffinert.FuzzySharp.Edits;
 using Raffinert.FuzzySharp.Utils;
 
 namespace Raffinert.FuzzySharp
 {
     public static class LongestCommonSequence
     {
-        private const int MaxLength = 64;
+        private const int WordSize = 64;
 
         public static int Similarity<T>(
             ReadOnlySpan<T> s1,
@@ -46,11 +47,11 @@ namespace Raffinert.FuzzySharp
                 return 0;
 
             int len1 = s1.Length;
-            if (len1 > MaxLength)
-                throw new ArgumentException($"s1 length must be ≤ {MaxLength}", nameof(s1));
+            if (len1 > WordSize)
+                throw new ArgumentException($"s1 length must be ≤ {WordSize}", nameof(s1));
 
             // Build bit-mask for each character in s1
-            ulong mask = len1 == MaxLength ? ulong.MaxValue : (1UL << len1) - 1UL;
+            ulong mask = len1 == WordSize ? ulong.MaxValue : (1UL << len1) - 1UL;
             var block = new Dictionary<T, ulong>();
             ulong x = 1UL;
             foreach (T ch in s1)
@@ -174,19 +175,19 @@ namespace Raffinert.FuzzySharp
         }
 
         // Helper to count zero bits in lower 'length' bits of S
-        private static int CountZeroBits(ulong S, int length)
-        {
-            ulong mask = length == MaxLength ? ulong.MaxValue : (1UL << length) - 1UL;
-            ulong inv = ~S & mask;
-            int count = 0;
-            while (inv != 0)
-            {
-                if ((inv & 1UL) != 0)
-                    count++;
-                inv >>= 1;
-            }
-            return count;
-        }
+        //private static int CountZeroBits(ulong S, int length)
+        //{
+        //    ulong mask = length == WordSize ? ulong.MaxValue : (1UL << length) - 1UL;
+        //    ulong inv = ~S & mask;
+        //    int count = 0;
+        //    while (inv != 0)
+        //    {
+        //        if ((inv & 1UL) != 0)
+        //            count++;
+        //        inv >>= 1;
+        //    }
+        //    return count;
+        //}
 
         public static int SimilarityMultipleMachineWords<T>(
         ReadOnlySpan<T> s1,
@@ -278,28 +279,28 @@ namespace Raffinert.FuzzySharp
             return lcs;
         }
 
-        private static int CountZeroBits(ulong[] S, int length)
-        {
-            int segCount = S.Length;
-            int rem = length & 63;
-            // rebuild the per-segment mask
-            var mask = new ulong[segCount];
-            for (int i = 0; i < segCount; i++)
-                mask[i] = ulong.MaxValue;
-            if (rem != 0)
-                mask[segCount - 1] = (1UL << rem) - 1;
+        //private static int CountZeroBits(ulong[] S, int length)
+        //{
+        //    int segCount = S.Length;
+        //    int rem = length & 63;
+        //    // rebuild the per-segment mask
+        //    var mask = new ulong[segCount];
+        //    for (int i = 0; i < segCount; i++)
+        //        mask[i] = ulong.MaxValue;
+        //    if (rem != 0)
+        //        mask[segCount - 1] = (1UL << rem) - 1;
 
-            int zeros = 0;
-            for (int i = 0; i < segCount; i++)
-            {
-                // invert & mask → bits that are zero in S
-                ulong inv = ~S[i] & mask[i];
-                // popcount of inv = number of zero bits
-                zeros += PopCount(inv);
-            }
+        //    int zeros = 0;
+        //    for (int i = 0; i < segCount; i++)
+        //    {
+        //        // invert & mask → bits that are zero in S
+        //        ulong inv = ~S[i] & mask[i];
+        //        // popcount of inv = number of zero bits
+        //        zeros += PopCount(inv);
+        //    }
 
-            return zeros;
-        }
+        //    return zeros;
+        //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int PopCount(ulong value)
@@ -388,118 +389,180 @@ namespace Raffinert.FuzzySharp
 
         //todo: reimplement like in NewLevenshtein for single and multiple machine words
         // Internal: builds LCS matrix of bitmasks for editops
-        private static (int sim, List<ulong> matrix) Matrix<T>(
+        /// <summary>
+        /// Computes the bit-parallel LCS matrix (as 64-bit blocks) and final similarity (LCS length).
+        /// Automatically dispatches to single-word or multi-word implementation.
+        /// </summary>
+        public static (int Sim, List<ulong[]> Matrix) Matrix<T>(
+            ReadOnlySpan<T> s1,
+            ReadOnlySpan<T> s2) where T : IEquatable<T>
+        {
+            return s1.Length <= WordSize
+                ? MatrixSingleMachineWord(s1, s2)
+                : MatrixMultipleMachineWords(s1, s2);
+        }
+
+        /// <summary>
+        /// Single-machine-word LCS (pattern length ≤ 64).
+        /// </summary>
+        private static (int Sim, List<ulong[]> Matrix) MatrixSingleMachineWord<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2) where T : IEquatable<T>
         {
             if (s1.IsEmpty)
-                return (0, []);
+                return (0, new List<ulong[]>(s2.Length));
 
-            int len1 = s1.Length;
-            if (len1 > MaxLength)
-                throw new ArgumentException($"s1 length must be ≤ {MaxLength}", nameof(s1));
+            int m = s1.Length;
+            ulong S = (m == WordSize) ? ulong.MaxValue : (1UL << m) - 1UL;
 
-            ulong S = len1 == MaxLength ? ulong.MaxValue : (1UL << len1) - 1UL;
+            // build bit-mask
             var block = new Dictionary<T, ulong>();
-            ulong x = 1UL;
-            foreach (T ch in s1)
+            ulong bit = 1;
+            foreach (var x in s1)
             {
-                if (block.ContainsKey(ch))
-                    block[ch] |= x;
-                else
-                    block[ch] = x;
-                x <<= 1;
+                if (block.ContainsKey(x)) block[x] |= bit;
+                else block[x] = bit;
+                bit <<= 1;
             }
 
-            var matrix = new List<ulong>(s2.Length);
-            foreach (var ch2 in s2)
+            var matrix = new List<ulong[]>(s2.Length);
+            foreach (var y in s2)
             {
-                block.TryGetValue(ch2, out ulong Matches);
-                ulong u = S & Matches;
+                block.TryGetValue(y, out var M);
+                // u = S & M
+                ulong u = S & M;
+                // S = (S + u) | (S - u)
                 unchecked { S = (S + u) | (S - u); }
-                matrix.Add(S);
+                matrix.Add([S]);
             }
 
-            int sim = CountZeroBits(S, len1);
+            int sim = CountZeroBits(S, m);
             return (sim, matrix);
         }
 
         /// <summary>
-        /// Describes a single edit operation.
+        /// Multi-machine-word LCS (any pattern length).
         /// </summary>
-        public class Editop
+        private static (int Sim, List<ulong[]> Matrix) MatrixMultipleMachineWords<T>(
+            ReadOnlySpan<T> s1,
+            ReadOnlySpan<T> s2) where T : IEquatable<T>
         {
-            public string Tag { get; }
-            public int SrcPos { get; }
-            public int DestPos { get; }
+            int m = s1.Length;
+            if (m == 0)
+                return (0, new List<ulong[]>(s2.Length));
 
-            public Editop(string tag, int srcPos, int destPos)
+            int blocks = (m + WordSize - 1) / WordSize;
+            // initialize S[] = all-1 in low m bits
+            var S = new ulong[blocks];
+            for (int i = 0; i < blocks; i++)
             {
-                Tag = tag;
-                SrcPos = srcPos;
-                DestPos = destPos;
+                if (i < blocks - 1 || m % WordSize == 0)
+                    S[i] = ulong.MaxValue;
+                else
+                    S[i] = (1UL << (m % WordSize)) - 1;
             }
-        }
 
-        /// <summary>
-        /// Collection of edit operations and conversion to opcodes.
-        /// </summary>
-        public record Editops(List<Editop> Ops, int SrcLen, int DestLen)
-        {
-            /// <summary>
-            /// Converts edit operations to opcodes, grouping "equal" runs.
-            /// </summary>
-            public List<Opcode> AsOpcodes()
+            // build blockTable: element → bit-mask array
+            var blockTable = new Dictionary<T, ulong[]>();
+            for (int i = 0; i < m; i++)
             {
-                var opcodes = new List<Opcode>();
-                int prev_i = 0, prev_j = 0;
-                foreach (var op in Ops)
+                var key = s1[i];
+                int b = i / WordSize, off = i % WordSize;
+                if (!blockTable.TryGetValue(key, out var arr))
                 {
-                    int i = op.SrcPos;
-                    int j = op.DestPos;
-                    // equal segment
-                    if (prev_i < i && prev_j < j)
-                        opcodes.Add(new Opcode("equal", prev_i, i, prev_j, j));
-                    // delete
-                    if (op.Tag == "delete")
-                    {
-                        opcodes.Add(new Opcode("delete", i, i + 1, j, j));
-                        prev_i = i + 1;
-                        prev_j = j;
-                    }
-                    // insert
-                    else if (op.Tag == "insert")
-                    {
-                        opcodes.Add(new Opcode("insert", i, i, j, j + 1));
-                        prev_i = i;
-                        prev_j = j + 1;
-                    }
+                    arr = new ulong[blocks];
+                    blockTable[key] = arr;
+                }
+                arr[b] |= 1UL << off;
+            }
+            var zeroMask = new ulong[blocks];
+
+            var matrix = new List<ulong[]>(s2.Length);
+            var U = new ulong[blocks];
+            var Sum = new ulong[blocks];
+            var Diff = new ulong[blocks];
+
+            foreach (var y in s2)
+            {
+                // load mask for y
+                if (!blockTable.TryGetValue(y, out U))
+                    U = zeroMask;
+
+                // big-integer add: Sum = S + U
+                ulong carry = 0;
+                for (int b = 0; b < blocks; b++)
+                {
+                    ulong s = S[b], u = U[b];
+                    ulong t = unchecked(s + u);
+                    ulong c1 = t < s ? 1UL : 0UL;
+                    ulong t2 = unchecked(t + carry);
+                    ulong c2 = t2 < t ? 1UL : 0UL;
+                    Sum[b] = t2;
+                    carry = c1 | c2;
                 }
 
-                // final equal segment
-                if (prev_i < SrcLen && prev_j < DestLen)
-                    opcodes.Add(new Opcode("equal", prev_i, SrcLen, prev_j, DestLen));
-                
-                return opcodes;
+                // big-integer subtract: Diff = S - U
+                ulong borrow = 0;
+                for (int b = 0; b < blocks; b++)
+                {
+                    ulong s = S[b], u = U[b];
+                    ulong t1 = unchecked(s - u);
+                    ulong b1 = s < u ? 1UL : 0UL;
+                    ulong t2 = unchecked(t1 - borrow);
+                    ulong b2 = t1 < borrow ? 1UL : 0UL;
+                    Diff[b] = t2;
+                    borrow = b1 | b2;
+                }
+
+                // update S = Sum | Diff
+                for (int b = 0; b < blocks; b++)
+                    S[b] = Sum[b] | Diff[b];
+
+                // snapshot row
+                matrix.Add((ulong[])S.Clone());
             }
 
-            public List<Editop> Ops { get; } = Ops;
-            public int SrcLen { get; } = SrcLen;
-            public int DestLen { get; } = DestLen;
+            int sim = CountZeroBits(S, m);
+            return (sim, matrix);
         }
 
         /// <summary>
-        /// Represents a grouped opcode for diff operations.
+        /// Count zero-bits in the low 'length' bits of a single ulong.
         /// </summary>
-        public record struct Opcode(string Tag, int I1, int I2, int J1, int J2);
+        private static int CountZeroBits(ulong x, int length)
+        {
+            // invert and mask
+            ulong inv = ~x & ((length == WordSize) ? ulong.MaxValue : (1UL << length) - 1UL);
+            return PopCount(inv);
+        }
 
-        
-        public delegate void Processor<T>(ref ReadOnlySpan<T> str) where T : IEquatable<T>;
+        /// <summary>
+        /// Count zero-bits over a multi-word S[] across low 'length' bits.
+        /// </summary>
+        private static int CountZeroBits(ulong[] S, int length)
+        {
+            int fullBlocks = length / WordSize;
+            int remBits = length % WordSize;
+            int zeros = 0;
+
+            // all full blocks
+            for (int i = 0; i < fullBlocks; i++)
+                zeros += PopCount(~S[i]);
+
+            // last partial block
+            if (remBits > 0)
+            {
+                ulong mask = (1UL << remBits) - 1;
+                zeros += PopCount(~S[fullBlocks] & mask);
+            }
+
+            return zeros;
+        }
 
         /// <summary>
         /// Computes edit operations to turn s1 into s2.
         /// </summary>
-        public static Editops GetEditops<T>(
+        public static EditOp[] GetEditOps<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
             Processor<T> processor = null) where T : IEquatable<T>
@@ -510,73 +573,119 @@ namespace Raffinert.FuzzySharp
                 processor(ref s2);
             }
 
-            var editops = new Editops([], s1.Length, s2.Length);
-
+            // strip any common prefix/suffix if you like
             var (prefixLen, _) = SequenceUtils.TrimIfNeeded(ref s1, ref s2);
+
+            // now Matrix returns List<ulong[]> — one ulong[] per char of s2
             var (sim, matrix) = Matrix(s1, s2);
-            
+
             int dist = s1.Length + s2.Length - 2 * sim;
             if (dist == 0)
-                return editops;
+                return [];
 
-            var editopList = new Editop[dist];
-            int col = s1.Length;
-            int row = s2.Length;
-            int d = dist;
+            var opsArray = new EditOp[dist];
+            int nextIndex = dist;
 
-            while (row != 0 && col != 0)
+            int row = s2.Length, col = s1.Length;
+            const int WordSize = 64;
+
+            while (row > 0 && col > 0)
             {
-                // deletion
-                if ((matrix[row - 1] & (1UL << (col - 1))) != 0)
+                // pick up the bit-mask vector for the previous row
+                var bits = matrix[row - 1];
+
+                // compute which block and which bit in that block is "col-1"
+                int bitIndex = col - 1;
+                int block = bitIndex / WordSize;
+                int offset = bitIndex % WordSize;
+                ulong mask = 1UL << offset;
+
+                // if bit is set ⇒ this was a deletion in LCS fallback
+                if ((bits[block] & mask) != 0)
                 {
-                    d--;
+                    nextIndex--;
                     col--;
-                    editopList[d] = new Editop("delete", col + prefixLen, row + prefixLen);
+                    opsArray[nextIndex] = new EditOp
+                    {
+                        EditType = EditType.DELETE,
+                        SourcePos = col + prefixLen,
+                        DestPos = row + prefixLen
+                    };
                 }
                 else
                 {
+                    // no deletion ⇒ move up a row
                     row--;
-                    // insertion
-                    if (row != 0 && (matrix[row - 1] & (1UL << (col - 1))) == 0)
+
+                    // but if still in-bounds and the bit is still zero ⇒ insertion
+                    if (row > 0)
                     {
-                        d--;
-                        editopList[d] = new Editop("insert", col + prefixLen, row + prefixLen);
+                        bits = matrix[row - 1];
+                        if ((bits[block] & mask) == 0)
+                        {
+                            nextIndex--;
+                            opsArray[nextIndex] = new EditOp
+                            {
+                                EditType = EditType.INSERT,
+                                SourcePos = col + prefixLen,
+                                DestPos = row + prefixLen
+                            };
+                            continue;
+                        }
                     }
-                    else
-                    {
-                        col--;
-                    }
+
+                    // otherwise it was a match/move-left in LCS
+                    col--;
                 }
             }
 
-            // remaining deletions
-            while (col != 0)
+            // any remaining deletes on the left edge
+            while (col > 0)
             {
-                d--;
+                nextIndex--;
                 col--;
-                editopList[d] = new Editop("delete", col + prefixLen, row + prefixLen);
+                opsArray[nextIndex] = new EditOp
+                {
+                    EditType = EditType.DELETE,
+                    SourcePos = col + prefixLen,
+                    DestPos = row + prefixLen
+                };
             }
-            // remaining insertions
-            while (row != 0)
+            // any remaining inserts on the top edge
+            while (row > 0)
             {
-                d--;
+                nextIndex--;
                 row--;
-                editopList[d] = new Editop("insert", col + prefixLen, row + prefixLen);
+                opsArray[nextIndex] = new EditOp
+                {
+                    EditType = EditType.INSERT,
+                    SourcePos = col + prefixLen,
+                    DestPos = row + prefixLen
+                };
             }
 
-            editops.Ops.AddRange(editopList);
-            return editops;
+            return opsArray;
         }
 
-        /// <summary>
-        /// Computes grouped opcodes for turning s1 into s2.
-        /// </summary>
-        public static List<Opcode> Opcodes<T>(
+
+        public static List<OpCode> Opcodes<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
             Processor<T> processor = null) where T : IEquatable<T>
         {
-            return GetEditops(s1, s2, processor).AsOpcodes();
+            var editOps = GetEditOps(s1, s2, processor);
+            var opCodes = editOps.AsOpCodes(s1.Length, s2.Length);
+            return opCodes;
+        }
+
+        public static List<MatchingBlock> MatchingBlocks<T>(
+            ReadOnlySpan<T> s1,
+            ReadOnlySpan<T> s2,
+            Processor<T> processor = null) where T : IEquatable<T>
+        {
+            var editOps = GetEditOps(s1, s2, processor);
+            var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
+            return matchingBlocks;
         }
     }
 }

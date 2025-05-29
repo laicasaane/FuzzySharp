@@ -200,7 +200,7 @@ public class BenchmarkAll
     [Benchmark]
     public int LevenshteinDistance()
     {
-        return Levenshtein.EditDistance("chicago cubs vs new york mets".AsSpan(), "new york mets vs chicago cubs".AsSpan());
+        return NewLevenshtein.Distance("chicago cubs vs new york mets".AsSpan(), "new york mets vs chicago cubs".AsSpan());
     }
 
     [Benchmark]

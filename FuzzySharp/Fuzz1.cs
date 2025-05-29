@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Raffinert.FuzzySharp
 {
@@ -23,7 +22,7 @@ namespace Raffinert.FuzzySharp
         public static double PartialRatio<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
-            LongestCommonSequence.Processor<T>? processor = null,
+            Processor<T>? processor = null,
             double? scoreCutoff = null
         ) where T : IEquatable<T>
         {
@@ -38,7 +37,7 @@ namespace Raffinert.FuzzySharp
         public static ScoreAlignment? PartialRatioAlignment<T>(
             ReadOnlySpan<T> s1,
             ReadOnlySpan<T> s2,
-            LongestCommonSequence.Processor<T>? processor = null,
+            Processor<T>? processor = null,
             double? scoreCutoff = null
         ) where T : IEquatable<T>
         {

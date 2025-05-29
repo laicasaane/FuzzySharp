@@ -7,7 +7,7 @@ public static class BitParallelIndel
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Distance<T>(ReadOnlySpan<T> s1,
-        ReadOnlySpan<T> s2, LongestCommonSequence.Processor<T> processor = null) where T : IEquatable<T>
+        ReadOnlySpan<T> s2, Processor<T> processor = null) where T : IEquatable<T>
     {
         if (processor != null)
         {
@@ -28,7 +28,7 @@ public static class BitParallelIndel
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double NormalizedDistance<T>(ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2, 
-        LongestCommonSequence.Processor<T> processor = null) where T : IEquatable<T>
+        Processor<T> processor = null) where T : IEquatable<T>
     {
         if (processor != null)
         {
@@ -46,7 +46,7 @@ public static class BitParallelIndel
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double NormalizedSimilarity<T>(ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
-        LongestCommonSequence.Processor<T> processor = null) where T : IEquatable<T>
+        Processor<T> processor = null) where T : IEquatable<T>
     {
         if (processor != null)
         {

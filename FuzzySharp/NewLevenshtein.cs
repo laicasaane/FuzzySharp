@@ -1,5 +1,6 @@
 ﻿using Raffinert.FuzzySharp.Utils;
 using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Raffinert.FuzzySharp.Edits;
@@ -542,6 +543,50 @@ public static class NewLevenshtein
         => NormalizedSimilarity(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
 
 
+    public static double GetRatio<T>(T[] input1, T[] input2) where T : IEquatable<T>
+    {
+        int len1 = input1.Length;
+        int len2 = input2.Length;
+        int lensum = len1 + len2;
+
+        int editDistance = Distance<T>(input1.AsSpan(), input2.AsSpan(), replaceCost:2);
+
+        return editDistance == 0 ? 1 : (lensum - editDistance) / (double)lensum;
+    }
+
+    public static double GetRatio<T>(ReadOnlySpan<T> input1, ReadOnlySpan<T> input2) where T : IEquatable<T>
+    {
+        int len1 = input1.Length;
+        int len2 = input2.Length;
+        int lensum = len1 + len2;
+
+        int editDistance = Distance(input1, input2, replaceCost: 2);
+
+        return editDistance == 0 ? 1 : (lensum - editDistance) / (double)lensum;
+    }
+
+    // Special Case
+    public static double GetRatio(string s1, string s2)
+    {
+        return GetRatio(s1.AsSpan(), s2.AsSpan());
+    }
+
+    public static EditOp[] GetEditOps(
+        string s1,
+        string s2,
+        Func<string, string> processor = null,
+        int? scoreHint = null
+    )
+    {
+        if (processor != null)
+        {
+            s1 = processor(s1);
+            s2 = processor(s2);
+        }
+
+        return GetEditOps(s1.AsSpan(), s2.AsSpan(), scoreHint: scoreHint);
+    }
+
     /// <summary>
     /// High‐level dispatcher you just asked for: computes the edit‐ops
     /// by slicing off common prefixes/suffixes, running the bit-parallel
@@ -551,36 +596,33 @@ public static class NewLevenshtein
     /// <param name="s2">Destination sequence.</param>
     /// <param name="processor">Optional preprocessor (e.g. to normalize).</param>
     /// <param name="scoreHint">Ignored here—only used internally for dispatch in Python.</param>
-    public static EditOp[] GetEditOps(
-        string s1,
-        string s2,
-        Func<string, string> processor = null,
+    public static EditOp[] GetEditOps<T>(
+        ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        Processor<T> processor = null,
         int? scoreHint = null
-    )
+    ) where T : IEquatable<T>
     {
         // 1) Optional preprocessing
         if (processor != null)
         {
-            s1 = processor(s1);
-            s2 = processor(s2);
+            processor(ref s1);
+            processor(ref s2);
         }
 
-        var s1Span = s1.AsSpan();
-        var s2Span = s2.AsSpan();
-        
         // 2) For strings, conv_sequences is identity
         //    (for more general sequences you'd map items to ints)
         // 3) Strip off common prefix+suffix
-        var (prefixLen, suffixLen) = SequenceUtils.TrimIfNeeded(ref s1Span, ref s2Span);
+        var (prefixLen, suffixLen) = SequenceUtils.TrimIfNeeded(ref s1, ref s2);
 
         // 4) Run the bit-parallel matrix
-        var (dist, VPblocks, VNblocks) = Matrix(s1Span, s2Span);
+        var (dist, VPblocks, VNblocks) = Matrix(s1, s2);
 
         // 5) Initialize backtracking
         int originalDist = dist;
         var opsArray = new EditOp[originalDist];
-        int col = s1Span.Length;
-        int row = s2Span.Length;
+        int col = s1.Length;
+        int row = s2.Length;
         int nextIndex = originalDist; // we’ll decrement before placing
 
         // 6) If no edits, we’re done
@@ -627,7 +669,7 @@ public static class NewLevenshtein
                     // move diagonally
                     col--;
                     // replace?
-                    if (s1Span[col] != s2Span[row])
+                    if (!EqualityComparer<T>.Default.Equals(s1[col], s2[row]))
                     {
                         nextIndex--;
                         opsArray[nextIndex] = new EditOp
@@ -673,8 +715,7 @@ public static class NewLevenshtein
     /// Dispatcher that picks the single‐word or multi‐word matrix.  
     /// Returns per‐character VP/VN block arrays.
     /// </summary>
-    private static (int Distance, List<ulong[]> VP, List<ulong[]> VN)
-        Matrix(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    private static (int Distance, List<ulong[]> VP, List<ulong[]> VN) Matrix<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
         return s1.Length <= 64 
             ? MatrixSingleMachineWord(s1, s2) 
@@ -689,7 +730,7 @@ public static class NewLevenshtein
     /// <returns>
     /// (Distance, VP-list, VN-list)
     /// </returns>
-    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
         if (s1.IsEmpty)
             return (s2.Length, [], []);
@@ -704,9 +745,9 @@ public static class NewLevenshtein
         ulong mask = 1UL << (s1.Length - 1);
 
         // Build the “block” table: for each character in s1, which bit(s) it sets
-        var block = new Dictionary<char, ulong>();
+        var block = new Dictionary<T, ulong>();
         ulong bit = 1UL;
-        foreach (char c in s1)
+        foreach (T c in s1)
         {
             if (block.ContainsKey(c))
                 block[c] |= bit;
@@ -718,7 +759,7 @@ public static class NewLevenshtein
         var matrixVP = new List<ulong[]>();
         var matrixVN = new List<ulong[]>();
 
-        foreach (char c in s2)
+        foreach (T c in s2)
         {
             block.TryGetValue(c, out ulong PMj);
 
@@ -760,7 +801,7 @@ public static class NewLevenshtein
     /// 2) the list of VP bit‐mask arrays (one array per text character),
     /// 3) the list of VN bit‐mask arrays (one array per text character).
     /// </returns>
-    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleMachineWords(ReadOnlySpan<char> pattern, ReadOnlySpan<char> text)
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleMachineWords<T>(ReadOnlySpan<T> pattern, ReadOnlySpan<T> text) where T : IEquatable<T>
     {
         int m = pattern.Length;
         if (m == 0)
@@ -789,10 +830,10 @@ public static class NewLevenshtein
         ulong topBitMask = 1UL << topBitPos;
 
         // Build the “block” table: for each character, which bit(s) in each block it sets
-        var blockTable = new Dictionary<char, ulong[]>();
+        var blockTable = new Dictionary<T, ulong[]>();
         for (int j = 0; j < m; j++)
         {
-            char c = pattern[j];
+            T c = pattern[j];
             int blk = j / 64, offset = j % 64;
             if (!blockTable.TryGetValue(c, out var arr))
             {
@@ -819,7 +860,7 @@ public static class NewLevenshtein
         var HNs = new ulong[blocks];
 
         // Process each character of the text
-        foreach (char c in text)
+        foreach (T c in text)
         {
             // 1) Load the pattern‐mask for c, or zeros if not present
             blockTable.TryGetValue(c, out X);
@@ -881,6 +922,21 @@ public static class NewLevenshtein
         }
 
         return (currDist, matrixVP, matrixVN);
+    }
+
+    public static List<MatchingBlock> GetMatchingBlocks<T>(T[] s1, T[] s2) where T : IEquatable<T>
+    {
+        var editOps = GetEditOps(new ReadOnlySpan<T>(s1), new ReadOnlySpan<T>(s2));
+        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
+        return matchingBlocks;
+    }
+
+    // Special Case
+    public static List<MatchingBlock> GetMatchingBlocks(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    {
+        var editOps = GetEditOps(s1, s2);
+        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
+        return matchingBlocks;
     }
 
     //public static List<EditOp> GetEditOps(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)

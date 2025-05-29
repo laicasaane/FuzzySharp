@@ -26,7 +26,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy.Generic
                 longer  = input1;
             }
 
-            MatchingBlock[] matchingBlocks = Levenshtein.GetMatchingBlocks(shorter, longer);
+            var matchingBlocks = NewLevenshtein.GetMatchingBlocks(shorter, longer);
 
             double maxScore = 0;
 
@@ -41,7 +41,7 @@ namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy.Generic
 
                 var longSubstr = longer.AsSpan()[longStart..longEnd];
 
-                double ratio = Levenshtein.GetRatio<T>(shorter.AsSpan(), longSubstr);
+                double ratio = NewLevenshtein.GetRatio<T>(shorter.AsSpan(), longSubstr);
 
                 if (ratio > .995)
                 {
