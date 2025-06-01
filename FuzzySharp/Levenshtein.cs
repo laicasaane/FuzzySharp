@@ -81,17 +81,17 @@ public static class Levenshtein
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
+            return MyersDistanceSingleULong(source, target, scoreCutoff);
         }
 
         SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
+            return MyersDistanceSingleULong(source, target, scoreCutoff);
         }
 
-        return MyersDistanceMultipleMachineWords(source, target, scoreCutoff);
+        return MyersDistanceMultipleULongs(source, target, scoreCutoff);
     }
 
     /// <summary>
@@ -303,7 +303,7 @@ public static class Levenshtein
     /// <param name="pattern">Pattern sequence (any length).</param>
     /// <param name="text">Text sequence.</param>
     /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
-    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleMachineWords<T>(ReadOnlySpan<T> pattern, ReadOnlySpan<T> text) where T : IEquatable<T>
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleULongs<T>(ReadOnlySpan<T> pattern, ReadOnlySpan<T> text) where T : IEquatable<T>
     {
         int m = pattern.Length;
         if (m == 0)
@@ -433,7 +433,7 @@ public static class Levenshtein
     /// <param name="s1">Pattern sequence (≤ 64 elements).</param>
     /// <param name="s2">Text sequence.</param>
     /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
-    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleULong<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
         if (s1.IsEmpty)
             return (s2.Length, [], []);
@@ -672,17 +672,17 @@ public static class Levenshtein
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleMachineWord(source, target);
+            return MyersDistanceSingleULong(source, target);
         }
 
         SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleMachineWord(source, target);
+            return MyersDistanceSingleULong(source, target);
         }
 
-        return MyersDistanceMultipleMachineWords(source, target);
+        return MyersDistanceMultipleULongs(source, target);
     }
 
     /// <summary>
@@ -695,8 +695,8 @@ public static class Levenshtein
     private static (int Distance, List<ulong[]> VP, List<ulong[]> VN) Matrix<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
         return s1.Length <= 64 
-            ? MatrixSingleMachineWord(s1, s2) 
-            : MatrixMultipleMachineWords(s1, s2);
+            ? MatrixSingleULong(s1, s2) 
+            : MatrixMultipleULongs(s1, s2);
     }
 
     /// <summary>
@@ -707,7 +707,7 @@ public static class Levenshtein
     /// <param name="target">Target sequence.</param>
     /// <param name="scoreCutoff">Maximum allowed distance.</param>
     /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
-    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
+    private static int MyersDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
     {
         var m = source.Length;
 
@@ -834,7 +834,7 @@ public static class Levenshtein
     /// <param name="source">Source sequence.</param>
     /// <param name="target">Target sequence.</param>
     /// <returns>The Levenshtein distance.</returns>
-    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    private static int MyersDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
     {
         var m = source.Length;
 
@@ -960,7 +960,7 @@ public static class Levenshtein
     /// <param name="target">Target sequence.</param>
     /// <param name="scoreCutoff">Maximum allowed distance.</param>
     /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
-    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
+    private static int MyersDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;
@@ -1011,7 +1011,7 @@ public static class Levenshtein
     /// <param name="source">Source sequence.</param>
     /// <param name="target">Target sequence.</param>
     /// <returns>The Levenshtein distance.</returns>
-    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    private static int MyersDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;

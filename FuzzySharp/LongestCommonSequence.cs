@@ -12,88 +12,6 @@ namespace Raffinert.FuzzySharp;
 /// </summary>
 public static class LongestCommonSequence
 {
-    private const int WordSize = 64;
-
-    /// <summary>
-    /// Computes the LCS similarity using a bit-parallel algorithm for sequences longer than 64 elements.
-    /// </summary>
-    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
-    /// <param name="block">Precomputed per-symbol bitmasks for s1.</param>
-    /// <param name="s1">First sequence (pattern).</param>
-    /// <param name="s2">Second sequence (text).</param>
-    /// <param name="scoreCutoff">Optional minimum similarity threshold.</param>
-    /// <returns>The length of the longest common subsequence, or 0 if below cutoff.</returns>
-    public static int BlockSimilarityMultipleMachineWords<T>(
-        Dictionary<T, ulong[]> block,
-        ReadOnlySpan<T> s1,
-        ReadOnlySpan<T> s2,
-        int? scoreCutoff = null
-    ) where T : IEquatable<T>
-    {
-        if (s1.IsEmpty)
-            return 0;
-
-        int len1 = s1.Length;
-        int segCount = (len1 + 63) / 64;
-
-        // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
-        ulong[] S = new ulong[segCount];
-        for (int i = 0; i < segCount; i++)
-            S[i] = ulong.MaxValue;
-        // clear high bits in the final segment if len1 % 64 != 0
-        int rem = len1 & 63;
-        if (rem != 0)
-            S[segCount - 1] = (1UL << rem) - 1;
-
-        // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
-        foreach (T ch in s2)
-        {
-            block.TryGetValue(ch, out var M);
-            // if no occurrences in s1, M will be all-zeros
-            if (M == null) M = new ulong[segCount];
-
-            // u = S & M
-            var u = new ulong[segCount];
-            for (int i = 0; i < segCount; i++)
-                u[i] = S[i] & M[i];
-
-            // add = S + u  (multi-precision)
-            var add = new ulong[segCount];
-            ulong carry = 0;
-            for (int i = 0; i < segCount; i++)
-            {
-                ulong sum = S[i] + u[i] + carry;
-                // carry if sum < S[i] or (carry==1 && sum==S[i])
-                carry = sum < S[i] || (carry == 1 && sum == S[i]) ? 1UL : 0UL;
-                add[i] = sum;
-            }
-
-            // sub = S - u  (multi-precision)
-            var sub = new ulong[segCount];
-            ulong borrow = 0;
-            for (int i = 0; i < segCount; i++)
-            {
-                ulong diff = S[i] - u[i] - borrow;
-                // borrow if original S[i] < u[i] + borrow
-                borrow = S[i] < u[i] + borrow ? 1UL : 0UL;
-                sub[i] = diff;
-            }
-
-            // new S = add | sub
-            for (int i = 0; i < segCount; i++)
-                S[i] = add[i] | sub[i];
-        }
-
-        // --- 4) count zero bits in the lower len1 positions of S ---
-        int lcs = CountZeroBits(S, len1);
-
-        var result = scoreCutoff == null || lcs >= scoreCutoff.Value
-            ? lcs
-            : 0;
-
-        return result;
-    }
-
     /// <summary>
     /// Computes the LCS-based distance between two sequences.
     /// </summary>
@@ -167,8 +85,8 @@ public static class LongestCommonSequence
 
             // compute which block and which bit in that block is "col-1"
             int bitIndex = col - 1;
-            int block = bitIndex / WordSize;
-            int offset = bitIndex % WordSize;
+            int block = bitIndex / 64;
+            int offset = bitIndex % 64;
             ulong mask = 1UL << offset;
 
             // if bit is set ⇒ this was a deletion in LCS fallback
@@ -268,9 +186,9 @@ public static class LongestCommonSequence
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
-        return s1.Length <= WordSize
-            ? MatrixSingleMachineWord(s1, s2)
-            : MatrixMultipleMachineWords(s1, s2);
+        return s1.Length <= 64
+            ? MatrixSingleULong(s1, s2)
+            : MatrixMultipleULongs(s1, s2);
     }
 
     /// <summary>
@@ -386,8 +304,8 @@ public static class LongestCommonSequence
         }
 
         var sim = s1.Length > 64 
-            ? SimilarityMultipleMachineWords(s1, s2) 
-            : SimilaritySingleMachineWord(s1, s2);
+            ? SimilarityMultipleULongs(s1, s2) 
+            : SimilaritySingleULong(s1, s2);
         
         var result = scoreCutoff == null || sim >= scoreCutoff.Value 
             ? sim 
@@ -396,17 +314,97 @@ public static class LongestCommonSequence
         return result;
     }
 
+    /// <summary>
+    /// Computes the LCS similarity using a bit-parallel algorithm for sequences that can be longer than 64 elements.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="block">Precomputed per-symbol bitmasks for s1.</param>
+    /// <param name="s1">First sequence (pattern).</param>
+    /// <param name="s2">Second sequence (text).</param>
+    /// <param name="scoreCutoff">Optional minimum similarity threshold.</param>
+    /// <returns>The length of the longest common subsequence, or 0 if below cutoff.</returns>
+    internal static int BlockSimilarityMultipleULongs<T>(
+        Dictionary<T, ulong[]> block,
+        ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        int? scoreCutoff = null
+    ) where T : IEquatable<T>
+    {
+        if (s1.IsEmpty)
+            return 0;
+
+        int len1 = s1.Length;
+        int segCount = (len1 + 63) / 64;
+
+        // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
+        ulong[] S = new ulong[segCount];
+        for (int i = 0; i < segCount; i++)
+            S[i] = ulong.MaxValue;
+        // clear high bits in the final segment if len1 % 64 != 0
+        int rem = len1 & 63;
+        if (rem != 0)
+            S[segCount - 1] = (1UL << rem) - 1;
+
+        // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
+        foreach (T ch in s2)
+        {
+            block.TryGetValue(ch, out var M);
+            // if no occurrences in s1, M will be all-zeros
+            if (M == null) M = new ulong[segCount];
+
+            // u = S & M
+            var u = new ulong[segCount];
+            for (int i = 0; i < segCount; i++)
+                u[i] = S[i] & M[i];
+
+            // add = S + u  (multi-precision)
+            var add = new ulong[segCount];
+            ulong carry = 0;
+            for (int i = 0; i < segCount; i++)
+            {
+                ulong sum = S[i] + u[i] + carry;
+                // carry if sum < S[i] or (carry==1 && sum==S[i])
+                carry = sum < S[i] || (carry == 1 && sum == S[i]) ? 1UL : 0UL;
+                add[i] = sum;
+            }
+
+            // sub = S - u  (multi-precision)
+            var sub = new ulong[segCount];
+            ulong borrow = 0;
+            for (int i = 0; i < segCount; i++)
+            {
+                ulong diff = S[i] - u[i] - borrow;
+                // borrow if original S[i] < u[i] + borrow
+                borrow = S[i] < u[i] + borrow ? 1UL : 0UL;
+                sub[i] = diff;
+            }
+
+            // new S = add | sub
+            for (int i = 0; i < segCount; i++)
+                S[i] = add[i] | sub[i];
+        }
+
+        // --- 4) count zero bits in the lower len1 positions of S ---
+        int lcs = CountZeroBits(S, len1);
+
+        var result = scoreCutoff == null || lcs >= scoreCutoff.Value
+            ? lcs
+            : 0;
+
+        return result;
+    }
+
     private static int CountZeroBits(ulong x, int length)
     {
         // invert and mask
-        ulong inv = ~x & (length == WordSize ? ulong.MaxValue : (1UL << length) - 1UL);
+        ulong inv = ~x & (length == 64 ? ulong.MaxValue : (1UL << length) - 1UL);
         return NumericsPolyfill.PopCount(inv);
     }
 
     private static int CountZeroBits(ulong[] S, int length)
     {
-        int fullBlocks = length / WordSize;
-        int remBits = length % WordSize;
+        int fullBlocks = length / 64;
+        int remBits = length % 64;
         int zeros = 0;
 
         // all full blocks
@@ -423,7 +421,7 @@ public static class LongestCommonSequence
         return zeros;
     }
 
-    private static (int Sim, List<ulong[]> Matrix) MatrixMultipleMachineWords<T>(
+    private static (int Sim, List<ulong[]> Matrix) MatrixMultipleULongs<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
@@ -431,15 +429,15 @@ public static class LongestCommonSequence
         if (m == 0)
             return (0, new List<ulong[]>(s2.Length));
 
-        int blocks = (m + WordSize - 1) / WordSize;
+        int blocks = (m + 64 - 1) / 64;
         // initialize S[] = all-1 in low m bits
         var S = new ulong[blocks];
         for (int i = 0; i < blocks; i++)
         {
-            if (i < blocks - 1 || m % WordSize == 0)
+            if (i < blocks - 1 || m % 64 == 0)
                 S[i] = ulong.MaxValue;
             else
-                S[i] = (1UL << (m % WordSize)) - 1;
+                S[i] = (1UL << (m % 64)) - 1;
         }
 
         // build blockTable: element → bit-mask array
@@ -447,7 +445,7 @@ public static class LongestCommonSequence
         for (int i = 0; i < m; i++)
         {
             var key = s1[i];
-            int b = i / WordSize, off = i % WordSize;
+            int b = i / 64, off = i % 64;
             if (!blockTable.TryGetValue(key, out var arr))
             {
                 arr = new ulong[blocks];
@@ -506,7 +504,7 @@ public static class LongestCommonSequence
         return (sim, matrix);
     }
 
-    private static (int Sim, List<ulong[]> Matrix) MatrixSingleMachineWord<T>(
+    private static (int Sim, List<ulong[]> Matrix) MatrixSingleULong<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
@@ -514,7 +512,7 @@ public static class LongestCommonSequence
             return (0, new List<ulong[]>(s2.Length));
 
         int m = s1.Length;
-        ulong S = m == WordSize ? ulong.MaxValue : (1UL << m) - 1UL;
+        ulong S = m == 64 ? ulong.MaxValue : (1UL << m) - 1UL;
 
         // build bit-mask
         var block = new Dictionary<T, ulong>();
@@ -541,7 +539,7 @@ public static class LongestCommonSequence
         return (sim, matrix);
     }
 
-    private static int SimilarityMultipleMachineWords<T>(
+    private static int SimilarityMultipleULongs<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2
     ) where T : IEquatable<T>
@@ -623,7 +621,7 @@ public static class LongestCommonSequence
         return lcs;
     }
 
-    private static int SimilaritySingleMachineWord<T>(
+    private static int SimilaritySingleULong<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
@@ -635,7 +633,7 @@ public static class LongestCommonSequence
         //    throw new ArgumentException($"s1 length must be ≤ {WordSize}", nameof(s1));
 
         // Build bit-mask for each character in s1
-        ulong mask = len1 == WordSize ? ulong.MaxValue : (1UL << len1) - 1UL;
+        ulong mask = len1 == 64 ? ulong.MaxValue : (1UL << len1) - 1UL;
         var block = new Dictionary<T, ulong>();
         ulong x = 1UL;
         foreach (T ch in s1)
