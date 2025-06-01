@@ -41,7 +41,7 @@ public static class LongestCommonSequence
             ? dist 
             : scoreCutoff.Value + 1;
 
-        return dist;
+        return result;
     }
 
     /// <summary>

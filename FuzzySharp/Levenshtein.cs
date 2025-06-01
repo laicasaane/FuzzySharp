@@ -406,7 +406,7 @@ public static class Levenshtein
                 ulong newCarryHP = hpb >> 63;
                 ulong newCarryHN = hnb >> 63;
                 HPs[b] = (hpb << 1) | carryHP;
-                HNs[b] = hnb << 1;
+                HNs[b] = (hnb << 1) | carryHN;
                 carryHP = newCarryHP;
                 carryHN = newCarryHN;
             }
