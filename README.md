@@ -8,12 +8,12 @@ Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fasten
 
 Random words of 3 to 64 random chars (LevenshteinSmall.cs):
 
-| Method        | Mean     | Error      | StdDev    | Ratio | RatioSD | Gen0      | Gen1    | Allocated  | Alloc Ratio |
-|-------------- |---------:|-----------:|----------:|------:|--------:|----------:|--------:|-----------:|------------:|
-| BaseLine      | 9.949 ms |  8.3785 ms | 0.4593 ms |  1.00 |    0.06 | 2078.1250 | 46.8750 | 13036006 B |       1.000 |
-| Fastenshtein  | 4.462 ms |  0.8704 ms | 0.0477 ms |  0.45 |    0.02 |         - |       - |     8939 B |       0.001 |
-| Quickenshtein | 3.005 ms |  0.4525 ms | 0.0248 ms |  0.30 |    0.01 |         - |       - |        4 B |       0.000 |
-| FuzzySharp    | 3.502 ms | 20.0766 ms | 1.1005 ms |  0.35 |    0.10 |         - |       - |          - |       0.000 |
+| Method        | Mean     | Error     | StdDev    | Ratio | Gen0      | Gen1    | Allocated  | Alloc Ratio |
+|-------------- |---------:|----------:|----------:|------:|----------:|--------:|-----------:|------------:|
+| BaseLine      | 8.876 ms | 1.6983 ms | 0.0931 ms |  1.00 | 2078.1250 | 46.8750 | 13036006 B |       1.000 |
+| Fastenshtein  | 4.537 ms | 0.9515 ms | 0.0522 ms |  0.51 |         - |       - |     8939 B |       0.001 |
+| Quickenshtein | 2.735 ms | 0.2194 ms | 0.0120 ms |  0.31 |         - |       - |        4 B |       0.000 |
+| FuzzySharp    | 2.229 ms | 0.3800 ms | 0.0208 ms |  0.25 |         - |       - |        2 B |       0.000 |
 
 Random words of 3 to 128 random chars (LevenshteinNormal.cs):
 
