@@ -12,7 +12,6 @@ namespace Raffinert.FuzzySharp;
 /// </summary>
 public static class Levenshtein
 {
-    // Public methods (alphabetically)
     /// <summary>
     /// Computes the Levenshtein distance between two strings with custom operation costs and optional cutoff.
     /// </summary>
@@ -608,7 +607,6 @@ public static class Levenshtein
         int? scoreCutoff = null)
         => Similarity(source.AsSpan(), s2.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
 
-    // Private methods (alphabetically)
     /// <summary>
     /// Computes the Levenshtein distance between two sequences with custom operation costs using a dynamic programming approach.
     /// </summary>

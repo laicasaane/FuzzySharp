@@ -9,7 +9,6 @@ namespace Raffinert.FuzzySharp;
 /// </summary>
 public static class Indel
 {
-    // Public methods (alphabetically)
     /// <summary>
     /// Computes the Indel distance using precomputed block data for the first sequence.
     /// </summary>
