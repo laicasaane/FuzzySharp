@@ -19,6 +19,18 @@ public class LevenshteinLarge
     }
 
     [Benchmark(Baseline = true)]
+    public void BaseLine()
+    {
+        for (var i = 0; i < _words.Length; i++)
+        {
+            for (int j = 0; j < _words.Length; j++)
+            {
+                LevenshteinBaseline.GetDistance(_words[i], _words[j]);
+            }
+        }
+    }
+
+    [Benchmark]
     public void Fastenshtein()
     {
         for (var i = 0; i < _words.Length; i++)

@@ -4,31 +4,34 @@ C# .NET fuzzy string matching implementation of Seat Geek's well known python Fu
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
-Benchcmark results FuzzySharp, Fastenshtein and Quickenshtein:
+Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fastenshtein and Quickenshtein:
 
 Random words of 3 to 64 random chars (LevenshteinSmall.cs):
 
-| Method        | Mean     | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
-|-------------- |---------:|----------:|----------:|------:|--------:|----------:|------------:|
-| Fastenshtein  | 4.492 ms | 2.2429 ms | 0.1229 ms |  1.00 |    0.03 |    8939 B |       1.000 |
-| Quickenshtein | 2.838 ms | 0.8191 ms | 0.0449 ms |  0.63 |    0.02 |       4 B |       0.000 |
-| FuzzySharp    | 2.378 ms | 3.0659 ms | 0.1681 ms |  0.53 |    0.03 |       2 B |       0.000 |
+| Method        | Mean        | Error        | StdDev    | Ratio | RatioSD | Gen0        | Gen1        | Allocated    | Alloc Ratio |
+|-------------- |------------:|-------------:|----------:|------:|--------:|------------:|------------:|-------------:|------------:|
+| BaseLine      | 1,813.26 ms | 1,413.980 ms | 77.505 ms |  1.00 |    0.05 | 330000.0000 | 265000.0000 | 2070298480 B |       1.000 |
+| Fastenshtein  |   964.00 ms |   660.636 ms | 36.212 ms |  0.53 |    0.03 |           - |           - |      93256 B |       0.000 |
+| Quickenshtein |    91.74 ms |     6.908 ms |  0.379 ms |  0.05 |    0.00 |           - |           - |        123 B |       0.000 |
+| FuzzySharp    |    43.35 ms |     2.757 ms |  0.151 ms |  0.02 |    0.00 |   1416.6667 |           - |    9341905 B |       0.005 |
 
 Random words of 3 to 128 random chars (LevenshteinNormal.cs):
 
-| Method        | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0     | Allocated | Alloc Ratio |
-|-------------- |----------:|----------:|----------:|------:|--------:|---------:|----------:|------------:|
-| Fastenshtein  | 22.880 ms | 18.813 ms | 1.0312 ms |  1.00 |    0.06 |        - |   16076 B |       1.000 |
-| Quickenshtein |  8.047 ms |  3.011 ms | 0.1651 ms |  0.35 |    0.02 |        - |      17 B |       0.001 |
-| FuzzySharp    |  5.779 ms |  4.338 ms | 0.2378 ms |  0.25 |    0.01 | 320.3125 | 2013603 B |     125.255 |
+| Method        | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0      | Gen1     | Allocated  | Alloc Ratio |
+|-------------- |----------:|----------:|----------:|------:|--------:|----------:|---------:|-----------:|------------:|
+| BaseLine      | 43.596 ms | 50.118 ms | 2.7471 ms |  1.00 |    0.08 | 8000.0000 | 769.2308 | 50620095 B |       1.000 |
+| Fastenshtein  | 20.224 ms | 13.203 ms | 0.7237 ms |  0.47 |    0.03 |         - |        - |    16076 B |       0.000 |
+| Quickenshtein |  7.816 ms |  1.877 ms | 0.1029 ms |  0.18 |    0.01 |         - |        - |       17 B |       0.000 |
+| FuzzySharp    |  5.860 ms |  2.558 ms | 0.1402 ms |  0.13 |    0.01 |  320.3125 |        - |  2013603 B |       0.040 |
 
 Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
 
-| Method        | Mean        | Error       | StdDev     | Ratio | RatioSD | Gen0      | Allocated | Alloc Ratio |
-|-------------- |------------:|------------:|-----------:|------:|--------:|----------:|----------:|------------:|
-| Fastenshtein  | 1,126.87 ms | 2,530.50 ms | 138.705 ms |  1.01 |    0.16 |         - |   93256 B |       1.000 |
-| Quickenshtein |    93.38 ms |    22.17 ms |   1.215 ms |  0.08 |    0.01 |         - |     123 B |       0.001 |
-| FuzzySharp    |    45.45 ms |    46.54 ms |   2.551 ms |  0.04 |    0.00 | 1416.6667 | 9341905 B |     100.175 |
+| Method        | Mean     | Error      | StdDev    | Ratio | RatioSD | Gen0      | Gen1    | Allocated  | Alloc Ratio |
+|-------------- |---------:|-----------:|----------:|------:|--------:|----------:|--------:|-----------:|------------:|
+| BaseLine      | 9.949 ms |  8.3785 ms | 0.4593 ms |  1.00 |    0.06 | 2078.1250 | 46.8750 | 13036006 B |       1.000 |
+| Fastenshtein  | 4.462 ms |  0.8704 ms | 0.0477 ms |  0.45 |    0.02 |         - |       - |     8939 B |       0.001 |
+| Quickenshtein | 3.005 ms |  0.4525 ms | 0.0248 ms |  0.30 |    0.01 |         - |       - |        4 B |       0.000 |
+| FuzzySharp    | 3.502 ms | 20.0766 ms | 1.1005 ms |  0.35 |    0.10 |         - |       - |          - |       0.000 |
 
 # Release Notes:
 v 3.0.0
