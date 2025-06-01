@@ -34,6 +34,7 @@ public static class SequenceUtils
         }
         return suffixLength;
     }
+    
     public static (int PrefixLength, int SuffixLength) CommonAffix<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
         int prefixLength = CommonPrefix(s1, s2);
@@ -42,15 +43,15 @@ public static class SequenceUtils
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void TrimAndSwapIfNeeded<T>(ref ReadOnlySpan<T> source, ref ReadOnlySpan<T> target) where T : IEquatable<T>
+    public static void TrimCommonAffixAndSwapIfNeeded<T>(ref ReadOnlySpan<T> source, ref ReadOnlySpan<T> target) where T : IEquatable<T>
     {
-        _ = TrimIfNeeded(ref source, ref target);
+        _ = TrimCommonAffix(ref source, ref target);
 
         SwapIfSourceIsLonger(ref source, ref target);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static (int PrefixLength, int SuffixLength) TrimIfNeeded<T>(ref ReadOnlySpan<T> source, ref ReadOnlySpan<T> target) where T : IEquatable<T>
+    public static (int PrefixLength, int SuffixLength) TrimCommonAffix<T>(ref ReadOnlySpan<T> source, ref ReadOnlySpan<T> target) where T : IEquatable<T>
     {
         var startIndex = 0;
         var sourceEnd = source.Length;

@@ -1,10 +1,9 @@
-﻿namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive
+﻿namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive;
+
+public abstract class SimpleRatioScorerBase : StrategySensitiveScorerBase
 {
-    public abstract class SimpleRatioScorerBase : StrategySensitiveScorerBase
+    public override int Score(string input1, string input2)
     {
-        public override int Score(string input1, string input2)
-        {
-            return Scorer(input1, input2);
-        }
+        return Scorer(input1, input2);
     }
 }

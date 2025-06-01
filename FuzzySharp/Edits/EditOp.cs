@@ -1,23 +1,22 @@
-﻿namespace Raffinert.FuzzySharp.Edits
+﻿namespace Raffinert.FuzzySharp.Edits;
+
+public enum EditType
 {
-    public enum EditType
-    {
-        DELETE = 0,
-        EQUAL = 1,
-        INSERT = 2,
-        REPLACE = 3,
-        KEEP = 4,
-    }
+    DELETE = 0,
+    EQUAL = 1,
+    INSERT = 2,
+    REPLACE = 3,
+    KEEP = 4,
+}
 
-    public record EditOp
-    {
-        public EditType EditType { get; set; }
-        public int SourcePos { get; set; }
-        public int DestPos { get; set; }
+public record EditOp
+{
+    public EditType EditType { get; set; }
+    public int SourcePos { get; set; }
+    public int DestPos { get; set; }
 
-        public override string ToString()
-        {
-            return $"{EditType}({SourcePos}, {DestPos})";
-        }
+    public override string ToString()
+    {
+        return $"{EditType}({SourcePos}, {DestPos})";
     }
 }

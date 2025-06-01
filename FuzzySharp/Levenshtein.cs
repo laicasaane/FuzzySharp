@@ -77,7 +77,7 @@ public static class Levenshtein
             return MyersDistanceSingleMachineWord(source, target);
         }
 
-        SequenceUtils.TrimAndSwapIfNeeded(ref source, ref target);
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         if (source.Length <= 64)
         {
@@ -97,7 +97,7 @@ public static class Levenshtein
             return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
         }
 
-        SequenceUtils.TrimAndSwapIfNeeded(ref source, ref target);
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         if (source.Length <= 64)
         {
@@ -199,9 +199,6 @@ public static class Levenshtein
     private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
     {
         var m = source.Length;
-        //var n = target.Length;
-        //if (m == 0) return n;
-        //if (n == 0) return m;
 
         // number of 64-bit blocks needed to cover pattern length m
         var blocks = (m + 63) >> 6;
@@ -457,10 +454,10 @@ public static class Levenshtein
 
         if (insertCost == 1 && deleteCost == 1 && replaceCost == 2)
         {
-            return Indel.Distance(source, target); //, scoreCutoff);
+            return Indel.Distance(source, target, scoreCutoff: scoreCutoff);
         }
 
-        SequenceUtils.TrimAndSwapIfNeeded(ref source, ref target);
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         // otherwise generic
         return GenericDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
@@ -585,7 +582,7 @@ public static class Levenshtein
         // 2) For strings, conv_sequences is identity
         //    (for more general sequences you'd map items to ints)
         // 3) Strip off common prefix+suffix
-        var (prefixLen, suffixLen) = SequenceUtils.TrimIfNeeded(ref s1, ref s2);
+        var (prefixLen, suffixLen) = SequenceUtils.TrimCommonAffix(ref s1, ref s2);
 
         // 4) Run the bit-parallel matrix
         var (dist, VPblocks, VNblocks) = Matrix(s1, s2);

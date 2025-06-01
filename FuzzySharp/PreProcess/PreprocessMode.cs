@@ -1,8 +1,7 @@
-﻿namespace Raffinert.FuzzySharp.PreProcess
+﻿namespace Raffinert.FuzzySharp.PreProcess;
+
+public enum PreprocessMode
 {
-    public enum PreprocessMode
-    {
-        Full = 0,
-        None = 1,
-    }
+    Full = 0,
+    None = 1,
 }
