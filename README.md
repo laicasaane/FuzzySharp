@@ -4,8 +4,6 @@ C# .NET fuzzy string matching implementation of Seat Geek's well known python Fu
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
-From the included brenchmarking tests comparing random words of 3 to 64 random chars to Fastenshtein implementation.
-
 Benchcmark results FuzzySharp, Fastenshtein and Quickenshtein:
 
 Random words of 3 to 64 random chars (LevenshteinSmall.cs):
