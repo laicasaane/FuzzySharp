@@ -168,6 +168,10 @@ public class RatioTests
 
         // https://github.com/seatgeek/fuzzywuzzy/issues/79
         Assert.AreEqual(100, Fuzz.PartialRatio("this is a test", "is this is a not really thing this is a test!")); // was 92 (actually 93)
+
+        // https://github.com/Raffinert/FuzzySharp/issues/2
+        Assert.AreEqual(100, Fuzz.PartialRatio("sh", "Growing eshops without a popular platform", PreprocessMode.Full));
+        Assert.AreEqual(100, Fuzz.PartialRatio("shop", "Growing eshops without a popular platform", PreprocessMode.Full));
     }
 
     [Test]
@@ -188,17 +192,7 @@ public class RatioTests
     }
 
     [Test]
-    [TestCase("sh")]
-    [TestCase("shop")]
-    public void Test01(string query)
-    {
-        var ratio = Fuzz.PartialRatio(query, "Growing eshops without a popular platform", PreprocessMode.Full);
-
-        Assert.True(ratio == 100);
-    }
-
-    [Test]
-    public void Test02()
+    public void TestZeroRatio()
     {
         var ratio = Fuzz.PartialTokenSortRatio("abc", "def");
 
