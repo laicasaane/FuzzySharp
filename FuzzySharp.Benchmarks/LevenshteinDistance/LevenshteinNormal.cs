@@ -1,0 +1,57 @@
+﻿using BenchmarkDotNet.Attributes;
+
+using FuzzLevenshtein = Raffinert.FuzzySharp.Levenshtein;
+using QuickLevenshtein = Quickenshtein.Levenshtein;
+using FastLevenshtein = Fastenshtein.Levenshtein;
+
+
+namespace Raffinert.FuzzySharp.Benchmarks.LevenshteinDistance;
+
+[MemoryDiagnoser]
+public class LevenshteinNormal
+{
+    private string[] _words;
+
+    [GlobalSetup]
+    public void SetUp()
+    {
+        _words = RandomWords.Create(50, 128);
+    }
+
+    [Benchmark(Baseline = true)]
+    public void Fastenshtein()
+    {
+        for (var i = 0; i < _words.Length; i++)
+        {
+            var levenshtein = new FastLevenshtein(_words[i]);
+            for (int j = 0; j < _words.Length; j++)
+            {
+                levenshtein.DistanceFrom(_words[j]);
+            }
+        }
+    }
+
+    [Benchmark]
+    public void Quickenshtein()
+    {
+        for (var i = 0; i < _words.Length; i++)
+        {
+            for (int j = 0; j < _words.Length; j++)
+            {
+                QuickLevenshtein.GetDistance(_words[i], _words[j]);
+            }
+        }
+    }
+
+    [Benchmark]
+    public void FuzzySharp()
+    {
+        for (var i = 0; i < _words.Length; i++)
+        {
+            for (int j = 0; j < _words.Length; j++)
+            {
+                FuzzLevenshtein.Distance(_words[i], _words[j]);
+            }
+        }
+    }
+}
