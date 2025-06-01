@@ -34,7 +34,7 @@ public static class LongestCommonSequence
         }
 
         int maximum = Math.Max(s1.Length, s2.Length);
-        int sim = Similarity(s1, s2, null);
+        int sim = Similarity(s1, s2);
         int dist = maximum - sim;
         
         var result = scoreCutoff == null || dist <= scoreCutoff.Value 
@@ -206,7 +206,7 @@ public static class LongestCommonSequence
         Processor<T> processor = null,
         int? scoreCutoff = null) where T : IEquatable<T>
     {
-        if (s1 == null && s2 == null)
+        if ((s1.IsEmpty && !s2.IsEmpty) || (!s1.IsEmpty && s2.IsEmpty))
         {
             return 1;
         }
@@ -245,9 +245,11 @@ public static class LongestCommonSequence
         Processor<T> processor = null,
         int? scoreCutoff = null) where T : IEquatable<T>
     {
-            
-        if (s1 == null || s2 == null)
-            return 0.0;
+
+        if (s1.IsEmpty || s2.IsEmpty)
+        {
+            return 0;
+        }
 
         if (processor != null)
         {
@@ -629,8 +631,6 @@ public static class LongestCommonSequence
             return 0;
 
         int len1 = s1.Length;
-        //if (len1 > WordSize)
-        //    throw new ArgumentException($"s1 length must be ≤ {WordSize}", nameof(s1));
 
         // Build bit-mask for each character in s1
         ulong mask = len1 == 64 ? ulong.MaxValue : (1UL << len1) - 1UL;
