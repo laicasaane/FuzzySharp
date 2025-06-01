@@ -5,6 +5,13 @@ C# .NET fuzzy string matching implementation of Seat Geek's well known python Fu
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
 # Release Notes:
+v 3.0.0
+
+Ported from [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) with Copilot:
+
+- The Levenshtein naive dynamic programming algorithm was replaced with the faster Myers' bit-parallel version.
+- Fuzz.PartialRatio and Fuzz.Ratio uses the longest common subsequence algorithm, see [ratio implementation](https://github.com/rapidfuzz/RapidFuzz/blob/main/api_differences.md#ratio-implementation) and [partial_ratio implememtation](https://github.com/rapidfuzz/RapidFuzz/blob/main/api_differences.md#partial_ratio-implementation).
+
 v.2.0.3
 
 Accent to performance and allocations. See [Benchmark](https://github.com/Raffinert/FuzzySharp/blob/dc2b858dc4cc56d8cdf26411904e255a019b0549/FuzzySharp.Benchmarks/BenchmarkDotNet.Artifacts/results/Raffinert.FuzzySharp.Benchmarks.BenchmarkAll-report-github.md).
@@ -72,7 +79,7 @@ Fuzz.PartialTokenInitialismRatio("NASA", "National Aeronautics Space Administrat
 Fuzz.TokenAbbreviationRatio("bl 420", "Baseline section 420", PreprocessMode.Full);
 40
 Fuzz.PartialTokenAbbreviationRatio("bl 420", "Baseline section 420", PreprocessMode.Full);
-50      
+67      
 ```
 
 
@@ -144,6 +151,8 @@ var weighted = ScorerCache.Get<WeightedRatioScorer>();
 - SeatGeek
 - Adam Cohen
 - David Necas (python-Levenshtein)
+- Jacob Bayer (original FuzzySharp library)
+- Max Bachmann (RapidFuzz)
 - Mikko Ohtamaa (python-Levenshtein)
 - Antti Haapala (python-Levenshtein)
 - Panayiotis (Java implementation I heavily borrowed from)
