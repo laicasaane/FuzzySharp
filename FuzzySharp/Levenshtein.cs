@@ -6,437 +6,40 @@ using Raffinert.FuzzySharp.Edits;
 
 namespace Raffinert.FuzzySharp;
 
+/// <summary>
+/// Provides static methods for computing the Levenshtein distance and similarity between sequences.
+/// Implements bit-parallel and dynamic programming algorithms inspired by RapidFuzz's Levenshtein implementation.
+/// </summary>
 public static class Levenshtein
 {
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int LevenshteinMaximum(int len1, int len2, int insertCost, int deleteCost, int replaceCost)
-    {
-        // Cost of deleting all of s1 then inserting all of s2
-        int totalDelIns = len1 * deleteCost + len2 * insertCost;
-
-        // Cost of replacing common prefix and handling extra characters
-        int common = len1 < len2 ? len1 : len2;
-        int extraCost = len1 >= len2
-            ? len1 - len2 * deleteCost
-            : len2 - len1 * insertCost;
-
-        int replaceAndDiff = common * replaceCost + extraCost;
-
-        // Return the smaller of the two worst-case scenarios
-        return totalDelIns < replaceAndDiff ? totalDelIns : replaceAndDiff;
-    }
+    // Public methods (alphabetically)
+    /// <summary>
+    /// Computes the Levenshtein distance between two strings with custom operation costs and optional cutoff.
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional maximum distance threshold.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    public static int Distance(
+        string source, string target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        int? scoreCutoff = null)
+        => Distance(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
 
     /// <summary>
-    /// Generic DP (one-row) implementation.
+    /// Computes the Levenshtein distance between two sequences with custom operation costs and optional cutoff.
     /// </summary>
-    private static int GenericDistance<T>(
-        ReadOnlySpan<T> source, ReadOnlySpan<T> target,
-        int insertCost, int deleteCost, int replaceCost,
-        int? scoreCutoff) where T : IEquatable<T>
-    {
-        var len1 = source.Length;
-        // allocate a single row of len1+1
-        Span<int> row = new int[len1 + 1];
-        // initial: cost of deleting all of s1's prefix
-        for (var i = 0; i <= len1; i++)
-            row[i] = i * deleteCost;
-
-        foreach (var c2 in target)
-        {
-            var prev = row[0];
-            row[0] += insertCost;
-            for (var i = 0; i < len1; i++)
-            {
-                var curr = row[i + 1];
-                var cost = prev;
-                if (!EqualityComparer<T>.Default.Equals(source[i], c2))
-                {
-                    var del = row[i] + deleteCost;
-                    var ins = row[i + 1] + insertCost;
-                    var rep = prev + replaceCost;
-                    cost = del < ins
-                        ? del < rep ? del : rep
-                        : ins < rep ? ins : rep;
-                }
-                prev = curr;
-                row[i + 1] = cost;
-            }
-            if (scoreCutoff.HasValue && row[len1] > scoreCutoff.Value)
-                return scoreCutoff.Value + 1;
-        }
-        return row[len1];
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
-    {
-        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleMachineWord(source, target);
-        }
-
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleMachineWord(source, target);
-        }
-
-        return MyersDistanceMultipleMachineWords(source, target);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
-    {
-        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
-        }
-
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
-        }
-
-        return MyersDistanceMultipleMachineWords(source, target, scoreCutoff);
-    }
-
-    /// <summary>
-    /// Bit-parallel Myers algorithm for unit weights (insert=delete=replace=1), 
-    /// zero-alloc.
-    /// </summary>
-    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
-    {
-        var m = source.Length;
-        if (m == 0) return target.Length;
-
-        // initial bitmask: lower m bits set
-        var VP = m < 64 ? (1UL << m) - 1 : ulong.MaxValue;
-        ulong VN = 0;
-        var highestBit = 1UL << (m - 1);
-        var dist = m;
-
-        foreach (var c2 in target)
-        {
-            // build mask for c2: bits set where s1[i] == c2
-            ulong PM = 0;
-            for (var i = 0; i < m; i++)
-            {
-                if (EqualityComparer<T>.Default.Equals(source[i], c2))
-                    PM |= 1UL << i;
-            }
-
-            // Myers bit-parallel update
-            var X = PM | VN;
-            var D0 = (((X & VP) + VP) ^ VP) | X;
-            D0 |= VN;
-            var HP = VN | ~(D0 | VP);
-            var HN = D0 & VP;
-
-            if ((HP & highestBit) != 0) dist++;
-            if ((HN & highestBit) != 0) dist--;
-
-            if (dist > scoreCutoff)
-                return scoreCutoff + 1;
-
-            // shift in
-            HP = (HP << 1) | 1;
-            HN <<= 1;
-            VP = HN | ~(D0 | HP);
-            VN = HP & D0;
-        }
-
-        return dist;
-    }
-
-    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
-    {
-        var m = source.Length;
-        if (m == 0) return target.Length;
-
-        // initial bitmask: lower m bits set
-        var VP = m < 64 ? (1UL << m) - 1 : ulong.MaxValue;
-        ulong VN = 0;
-        var highestBit = 1UL << (m - 1);
-        var dist = m;
-
-        foreach (var c2 in target)
-        {
-            // build mask for c2: bits set where s1[i] == c2
-            ulong PM = 0;
-            for (var i = 0; i < m; i++)
-            {
-                if (EqualityComparer<T>.Default.Equals(source[i], c2))
-                    PM |= 1UL << i;
-            }
-
-            // Myers bit-parallel update
-            var X = PM | VN;
-            var D0 = (((X & VP) + VP) ^ VP) | X;
-            D0 |= VN;
-            var HP = VN | ~(D0 | VP);
-            var HN = D0 & VP;
-
-            if ((HP & highestBit) != 0) dist++;
-            if ((HN & highestBit) != 0) dist--;
-
-            // shift in
-            HP = (HP << 1) | 1;
-            HN <<= 1;
-            VP = HN | ~(D0 | HP);
-            VN = HP & D0;
-        }
-
-        return dist;
-    }
-
-    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
-    {
-        var m = source.Length;
-
-        // number of 64-bit blocks needed to cover pattern length m
-        var blocks = (m + 63) >> 6;
-
-        // build per-character bitmasks over those blocks
-        var charMask = new Dictionary<T, ulong[]>();
-        for (var i = 0; i < m; i++)
-        {
-            var c = source[i];
-            var b = i >> 6;
-            var offset = i & 63;
-
-            if (!charMask.TryGetValue(c, out var maskArr))
-                charMask[c] = maskArr = new ulong[blocks];
-
-            maskArr[b] |= 1UL << offset;
-        }
-        // a zero-mask for characters not in s1
-        var zeroMask = new ulong[blocks];
-
-        // VP/VN state arrays, one ulong per block
-        var VP = new ulong[blocks];
-        var VN = new ulong[blocks];
-
-        // initialize VP so that the low m bits are 1
-        for (var b = 0; b < blocks; b++)
-        {
-            if (b < blocks - 1)
-                VP[b] = ulong.MaxValue;
-            else
-            {
-                var rem = m - ((blocks - 1) << 6);
-                VP[b] = rem == 64 ? ulong.MaxValue : (1UL << rem) - 1;
-            }
-            VN[b] = 0;
-        }
-
-        var last = blocks - 1;
-        // mask for the “highest” bit of the entire pattern (for score update)
-        var highestBitMask = 1UL << ((m - 1) & 63);
-
-        var dist = m;
-
-        // per-iteration working arrays
-        var X = new ulong[blocks];
-        var D0 = new ulong[blocks];
-        var HP = new ulong[blocks];
-        var HN = new ulong[blocks];
-
-        foreach (var c2 in target)
-        {
-            // grab the precomputed mask for this text char
-            var PMitem = charMask.GetValueOrDefault(c2, zeroMask);
-
-            // ========== Myers’s “D0” loop, but with carry across blocks ==========
-            ulong carry = 0;
-            for (var b = 0; b < blocks; b++)
-            {
-                var pm = PMitem[b];
-                var vp = VP[b];
-                var vn = VN[b];
-
-                // ordinary bit-parallel ops
-                var x = pm | vn;
-                X[b] = x;
-                var tmp = x & vp;
-
-                // do tmp + vp + carry, detecting overflow
-                var sum1 = tmp + vp;
-                var c1 = sum1 < tmp ? 1UL : 0UL;
-                var sum = sum1 + carry;
-                var c2o = sum < sum1 ? 1UL : 0UL;
-                carry = c1 | c2o;
-
-                // D0 = ((tmp + vp + carry) ^ vp) | x
-                var d0 = (sum ^ vp) | x;
-                D0[b] = d0;
-
-                // HP/HN before shifting
-                HP[b] = vn | ~(d0 | vp);
-                HN[b] = d0 & vp;
-            }
-
-            // update the current edit distance by inspecting the top bit of the last block
-            if ((HP[last] & highestBitMask) != 0) dist++;
-            if ((HN[last] & highestBitMask) != 0) dist--;
-            if (dist > scoreCutoff)
-                return scoreCutoff.Value + 1;
-
-            // ========== shift HP/HN left by 1 across blocks, then compute new VP/VN ==========
-            ulong carryHP = 1, carryHN = 0;
-            for (var b = 0; b < blocks; b++)
-            {
-                var hp = HP[b];
-                var hn = HN[b];
-
-                // capture the bit that will spill into the next block
-                var hpHigh = hp >> 63;
-                var hnHigh = hn >> 63;
-
-                // shift in the carry bits
-                hp = (hp << 1) | carryHP;
-                hn = (hn << 1) | carryHN;
-
-                // update VP/VN for next round
-                var d0 = D0[b];
-                VP[b] = hn | ~(d0 | hp);
-                VN[b] = hp & d0;
-
-                carryHP = hpHigh;
-                carryHN = hnHigh;
-            }
-        }
-
-        return dist;
-    }
-
-    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
-    {
-        var m = source.Length;
-
-        // number of 64-bit blocks needed to cover pattern length m
-        var blocks = (m + 63) >> 6;
-
-        // build per-character bitmasks over those blocks
-        var charMask = new Dictionary<T, ulong[]>();
-        for (var i = 0; i < m; i++)
-        {
-            var c = source[i];
-            var b = i >> 6;
-            var offset = i & 63;
-
-            if (!charMask.TryGetValue(c, out var maskArr))
-                charMask[c] = maskArr = new ulong[blocks];
-
-            maskArr[b] |= 1UL << offset;
-        }
-        // a zero-mask for characters not in s1
-        var zeroMask = new ulong[blocks];
-
-        // VP/VN state arrays, one ulong per block
-        var VP = new ulong[blocks];
-        var VN = new ulong[blocks];
-
-        // initialize VP so that the low m bits are 1
-        for (var b = 0; b < blocks; b++)
-        {
-            if (b < blocks - 1)
-                VP[b] = ulong.MaxValue;
-            else
-            {
-                var rem = m - ((blocks - 1) << 6);
-                VP[b] = rem == 64 ? ulong.MaxValue : (1UL << rem) - 1;
-            }
-            VN[b] = 0;
-        }
-
-        var last = blocks - 1;
-        // mask for the “highest” bit of the entire pattern (for score update)
-        var highestBitMask = 1UL << ((m - 1) & 63);
-
-        var dist = m;
-
-        // per-iteration working arrays
-        var X = new ulong[blocks];
-        var D0 = new ulong[blocks];
-        var HP = new ulong[blocks];
-        var HN = new ulong[blocks];
-
-        foreach (var c2 in target)
-        {
-            // grab the precomputed mask for this text char
-            var PMitem = charMask.GetValueOrDefault(c2, zeroMask);
-
-            // ========== Myers’s “D0” loop, but with carry across blocks ==========
-            ulong carry = 0;
-            for (var b = 0; b < blocks; b++)
-            {
-                var pm = PMitem[b];
-                var vp = VP[b];
-                var vn = VN[b];
-
-                // ordinary bit-parallel ops
-                var x = pm | vn;
-                X[b] = x;
-                var tmp = x & vp;
-
-                // do tmp + vp + carry, detecting overflow
-                var sum1 = tmp + vp;
-                var c1 = sum1 < tmp ? 1UL : 0UL;
-                var sum = sum1 + carry;
-                var c2o = sum < sum1 ? 1UL : 0UL;
-                carry = c1 | c2o;
-
-                // D0 = ((tmp + vp + carry) ^ vp) | x
-                var d0 = (sum ^ vp) | x;
-                D0[b] = d0;
-
-                // HP/HN before shifting
-                HP[b] = vn | ~(d0 | vp);
-                HN[b] = d0 & vp;
-            }
-
-            // update the current edit distance by inspecting the top bit of the last block
-            if ((HP[last] & highestBitMask) != 0) dist++;
-            if ((HN[last] & highestBitMask) != 0) dist--;
-
-            // ========== shift HP/HN left by 1 across blocks, then compute new VP/VN ==========
-            ulong carryHP = 1, carryHN = 0;
-            for (var b = 0; b < blocks; b++)
-            {
-                var hp = HP[b];
-                var hn = HN[b];
-
-                // capture the bit that will spill into the next block
-                var hpHigh = hp >> 63;
-                var hnHigh = hn >> 63;
-
-                // shift in the carry bits
-                hp = (hp << 1) | carryHP;
-                hn = (hn << 1) | carryHN;
-
-                // update VP/VN for next round
-                var d0 = D0[b];
-                VP[b] = hn | ~(d0 | hp);
-                VN[b] = hp & d0;
-
-                carryHP = hpHigh;
-                carryHN = hnHigh;
-            }
-        }
-
-        return dist;
-    }
-
-    /// <summary>
-    /// Core distance entry point with custom weights and optional cutoff.
-    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional maximum distance threshold.</param>
+    /// <returns>The Levenshtein distance.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Distance<T>(
         ReadOnlySpan<T> source, ReadOnlySpan<T> target,
@@ -463,83 +66,69 @@ public static class Levenshtein
         return GenericDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
     }
 
-
-
     /// <summary>
-    /// Convenience overloads for strings.
+    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm with a score cutoff.
     /// </summary>
-    public static int Distance(
-        string source, string target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        int? scoreCutoff = null)
-        => Distance(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
-
-    /// <summary>
-    /// Similarity = maximum possible distance – actual distance.
-    /// </summary>
-    public static int Similarity(
-        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        int? scoreCutoff = null)
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <param name="scoreCutoff">Maximum allowed distance.</param>
+    /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
     {
-        int len1 = source.Length, len2 = target.Length;
-        var maximum = LevenshteinMaximum(len1, len2, insertCost, deleteCost, replaceCost);
-        var dist = Distance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
-        var sim = maximum - dist;
-        return sim < scoreCutoff ? 0 : sim;
+        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
+        }
+
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return MyersDistanceSingleMachineWord(source, target, scoreCutoff);
+        }
+
+        return MyersDistanceMultipleMachineWords(source, target, scoreCutoff);
     }
 
-    public static int Similarity(
-        string source, string s2,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        int? scoreCutoff = null)
-        => Similarity(source.AsSpan(), s2.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
-
     /// <summary>
-    /// Normalized distance in [0,1].
+    /// Returns a list of matching blocks (contiguous matching subsequences) between s1 and s2 (special case for char spans).
     /// </summary>
-    public static double NormalizedDistance(
-        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        double? scoreCutoff = null)
+    /// <param name="s1">First string.</param>
+    /// <param name="s2">Second string.</param>
+    /// <returns>List of matching blocks.</returns>
+    public static List<MatchingBlock> GetMatchingBlocks(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
     {
-        int len1 = source.Length, len2 = target.Length;
-        if (len1 == 0 && len2 == 0) return 0.0;
-        var maximum = LevenshteinMaximum(len1, len2, insertCost, deleteCost, replaceCost);
-        if (maximum == 0) return 0.0;
-
-        var dist = Distance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff.HasValue ? (int?)Math.Floor(scoreCutoff.Value * maximum) : null);
-        var nd = dist / (double)maximum;
-        return nd > scoreCutoff ? 1.0 : nd;
+        var editOps = GetEditOps(s1, s2);
+        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
+        return matchingBlocks;
     }
 
-    public static double NormalizedDistance(
-        string source, string target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        double? scoreCutoff = null)
-        => NormalizedDistance(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
-
     /// <summary>
-    /// Normalized similarity in [0,1] = 1 − normalized distance.
+    /// Returns a list of matching blocks (contiguous matching subsequences) between s1 and s2.
     /// </summary>
-    public static double NormalizedSimilarity(
-        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        double? scoreCutoff = null)
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="s1">First sequence.</param>
+    /// <param name="s2">Second sequence.</param>
+    /// <returns>List of matching blocks.</returns>
+    public static List<MatchingBlock> GetMatchingBlocks<T>(T[] s1, T[] s2) where T : IEquatable<T>
     {
-        var nd = NormalizedDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
-        var ns = 1.0 - nd;
-
-        return ns < scoreCutoff ? 0.0 : ns;
+        var editOps = GetEditOps(new ReadOnlySpan<T>(s1), new ReadOnlySpan<T>(s2));
+        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
+        return matchingBlocks;
     }
 
-    public static double NormalizedSimilarity(
-        string source, string target,
-        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
-        double? scoreCutoff = null)
-        => NormalizedSimilarity(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
-
-
+    /// <summary>
+    /// Computes the sequence of edit operations (insert, delete, replace) to transform s1 into s2 using Levenshtein distance.
+    /// </summary>
+    /// <param name="s1">Source string.</param>
+    /// <param name="s2">Target string.</param>
+    /// <param name="processor">Optional preprocessor for normalization.</param>
+    /// <param name="scoreHint">Optional score hint (ignored).</param>
+    /// <returns>Array of edit operations (EditOp).</returns>
     public static EditOp[] GetEditOps(
         string s1,
         string s2,
@@ -557,14 +146,14 @@ public static class Levenshtein
     }
 
     /// <summary>
-    /// High‐level dispatcher you just asked for: computes the edit‐ops
-    /// by slicing off common prefixes/suffixes, running the bit-parallel
-    /// matrix, then backtracking.
+    /// Computes the sequence of edit operations (insert, delete, replace) to transform s1 into s2 using Levenshtein distance.
     /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
     /// <param name="s1">Source sequence.</param>
-    /// <param name="s2">Destination sequence.</param>
-    /// <param name="processor">Optional preprocessor (e.g. to normalize).</param>
-    /// <param name="scoreHint">Ignored here—only used internally for dispatch in Python.</param>
+    /// <param name="s2">Target sequence.</param>
+    /// <param name="processor">Optional preprocessor for normalization.</param>
+    /// <param name="scoreHint">Optional score hint (ignored).</param>
+    /// <returns>Array of edit operations (EditOp).</returns>
     public static EditOp[] GetEditOps<T>(
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
@@ -681,95 +270,39 @@ public static class Levenshtein
     }
 
     /// <summary>
-    /// Dispatcher that picks the single‐word or multi‐word matrix.  
-    /// Returns per‐character VP/VN block arrays.
+    /// Computes the maximum possible Levenshtein distance between two sequences given the operation costs.
     /// </summary>
-    private static (int Distance, List<ulong[]> VP, List<ulong[]> VN) Matrix<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
+    /// <param name="len1">Length of the first sequence.</param>
+    /// <param name="len2">Length of the second sequence.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <returns>The maximum possible Levenshtein distance.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int LevenshteinMaximum(int len1, int len2, int insertCost, int deleteCost, int replaceCost)
     {
-        return s1.Length <= 64 
-            ? MatrixSingleMachineWord(s1, s2) 
-            : MatrixMultipleMachineWords(s1, s2);
+        // Cost of deleting all of s1 then inserting all of s2
+        int totalDelIns = len1 * deleteCost + len2 * insertCost;
+
+        // Cost of replacing common prefix and handling extra characters
+        int common = len1 < len2 ? len1 : len2;
+        int extraCost = len1 >= len2
+            ? len1 - len2 * deleteCost
+            : len2 - len1 * insertCost;
+
+        int replaceAndDiff = common * replaceCost + extraCost;
+
+        // Return the smaller of the two worst-case scenarios
+        return totalDelIns < replaceAndDiff ? totalDelIns : replaceAndDiff;
     }
 
     /// <summary>
-    /// Computes the Myers bit-parallel VP/VN matrices and final edit distance using 64-bit words.
+    /// Computes the Myers bit-parallel VP/VN matrices and final edit distance for patterns of arbitrary length.
     /// </summary>
-    /// <param name="s1">Pattern (must be ≤ 64 chars).</param>
-    /// <param name="s2">Text.</param>
-    /// <returns>
-    /// (Distance, VP-list, VN-list)
-    /// </returns>
-    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
-    {
-        if (s1.IsEmpty)
-            return (s2.Length, [], []);
-
-        if (s1.Length > 64)
-            throw new ArgumentException("Pattern too long for 64-bit bit-parallel algorithm.", nameof(s1));
-
-        // Initial bitmasks
-        ulong VP = (1UL << s1.Length) - 1;
-        ulong VN = 0;
-        int currDist = s1.Length;
-        ulong mask = 1UL << (s1.Length - 1);
-
-        // Build the “block” table: for each character in s1, which bit(s) it sets
-        var block = new Dictionary<T, ulong>();
-        ulong bit = 1UL;
-        foreach (T c in s1)
-        {
-            if (block.ContainsKey(c))
-                block[c] |= bit;
-            else
-                block[c] = bit;
-            bit <<= 1;
-        }
-
-        var matrixVP = new List<ulong[]>();
-        var matrixVN = new List<ulong[]>();
-
-        foreach (T c in s2)
-        {
-            block.TryGetValue(c, out ulong PMj);
-
-            // Step 1: D0 = (((PMj & VP) + VP) ^ VP) | PMj | VN
-            // Use unchecked so addition wraps modulo 2^64
-            ulong X = PMj;
-            ulong D0 = unchecked(((X & VP) + VP) ^ VP) | X | VN;
-
-            // Step 2: HP = VN | ~(D0 | VP);  HN = D0 & VP
-            ulong HP = VN | ~(D0 | VP);
-            ulong HN = D0 & VP;
-
-            // Step 3: adjust distance by looking at the high bit
-            if ((HP & mask) != 0) currDist++;
-            if ((HN & mask) != 0) currDist--;
-
-            // Step 4: shift and recompute VP, VN
-            HP = (HP << 1) | 1UL;
-            HN <<= 1;
-            VP = HN | ~(D0 | HP);
-            VN = HP & D0;
-
-            matrixVP.Add([VP]);
-            matrixVN.Add([VN]);
-        }
-
-        return (currDist, matrixVP, matrixVN);
-    }
-
-    /// <summary>
-    /// Computes the Myers bit‐parallel VP/VN matrices and final edit distance
-    /// for an arbitrary‐length pattern by slicing into 64‐bit blocks.
-    /// </summary>
-    /// <param name="pattern">The pattern string (any length).</param>
-    /// <param name="text">The text string to compare against.</param>
-    /// <returns>
-    /// A tuple containing:
-    /// 1) the final edit distance,
-    /// 2) the list of VP bit‐mask arrays (one array per text character),
-    /// 3) the list of VN bit‐mask arrays (one array per text character).
-    /// </returns>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="pattern">Pattern sequence (any length).</param>
+    /// <param name="text">Text sequence.</param>
+    /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
     public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleMachineWords<T>(ReadOnlySpan<T> pattern, ReadOnlySpan<T> text) where T : IEquatable<T>
     {
         int m = pattern.Length;
@@ -893,18 +426,629 @@ public static class Levenshtein
         return (currDist, matrixVP, matrixVN);
     }
 
-    public static List<MatchingBlock> GetMatchingBlocks<T>(T[] s1, T[] s2) where T : IEquatable<T>
+    /// <summary>
+    /// Computes the Myers bit-parallel VP/VN matrices and final edit distance for patterns up to 64 elements.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="s1">Pattern sequence (≤ 64 elements).</param>
+    /// <param name="s2">Text sequence.</param>
+    /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
+    public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixSingleMachineWord<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
     {
-        var editOps = GetEditOps(new ReadOnlySpan<T>(s1), new ReadOnlySpan<T>(s2));
-        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
-        return matchingBlocks;
+        if (s1.IsEmpty)
+            return (s2.Length, [], []);
+
+        if (s1.Length > 64)
+            throw new ArgumentException("Pattern too long for 64-bit bit-parallel algorithm.", nameof(s1));
+
+        // Initial bitmasks
+        ulong VP = (1UL << s1.Length) - 1;
+        ulong VN = 0;
+        int currDist = s1.Length;
+        ulong mask = 1UL << (s1.Length - 1);
+
+        // Build the “block” table: for each character in s1, which bit(s) it sets
+        var block = new Dictionary<T, ulong>();
+        ulong bit = 1UL;
+        foreach (T c in s1)
+        {
+            if (block.ContainsKey(c))
+                block[c] |= bit;
+            else
+                block[c] = bit;
+            bit <<= 1;
+        }
+
+        var matrixVP = new List<ulong[]>();
+        var matrixVN = new List<ulong[]>();
+
+        foreach (T c in s2)
+        {
+            block.TryGetValue(c, out ulong PMj);
+
+            // Step 1: D0 = (((PMj & VP) + VP) ^ VP) | PMj | VN
+            // Use unchecked so addition wraps modulo 2^64
+            ulong X = PMj;
+            ulong D0 = unchecked(((X & VP) + VP) ^ VP) | X | VN;
+
+            // Step 2: HP = VN | ~(D0 | VP);  HN = D0 & VP
+            ulong HP = VN | ~(D0 | VP);
+            ulong HN = D0 & VP;
+
+            // Step 3: adjust distance by looking at the high bit
+            if ((HP & mask) != 0) currDist++;
+            if ((HN & mask) != 0) currDist--;
+
+            // Step 4: shift and recompute VP, VN
+            HP = (HP << 1) | 1UL;
+            HN <<= 1;
+            VP = HN | ~(D0 | HP);
+            VN = HP & D0;
+
+            matrixVP.Add([VP]);
+            matrixVN.Add([VN]);
+        }
+
+        return (currDist, matrixVP, matrixVN);
     }
 
-    // Special Case
-    public static List<MatchingBlock> GetMatchingBlocks(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    /// <summary>
+    /// Computes the normalized Levenshtein distance in [0, 1].
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional maximum normalized distance threshold.</param>
+    /// <returns>Normalized distance (0 = identical, 1 = completely different).</returns>
+    public static double NormalizedDistance(
+        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        double? scoreCutoff = null)
     {
-        var editOps = GetEditOps(s1, s2);
-        var matchingBlocks = editOps.AsMatchingBlocks(s1.Length, s2.Length);
-        return matchingBlocks;
+        int len1 = source.Length, len2 = target.Length;
+        if (len1 == 0 && len2 == 0) return 0.0;
+        var maximum = LevenshteinMaximum(len1, len2, insertCost, deleteCost, replaceCost);
+        if (maximum == 0) return 0.0;
+
+        var dist = Distance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff.HasValue ? (int?)Math.Floor(scoreCutoff.Value * maximum) : null);
+        var nd = dist / (double)maximum;
+        return nd > scoreCutoff ? 1.0 : nd;
+    }
+
+    /// <summary>
+    /// Computes the normalized Levenshtein distance for two strings.
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional maximum normalized distance threshold.</param>
+    /// <returns>Normalized distance (0 = identical, 1 = completely different).</returns>
+    public static double NormalizedDistance(
+        string source, string target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        double? scoreCutoff = null)
+        => NormalizedDistance(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
+
+    /// <summary>
+    /// Computes the normalized Levenshtein similarity in [0, 1] (1 - normalized distance).
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional minimum normalized similarity threshold.</param>
+    /// <returns>Normalized similarity (1 = identical, 0 = completely different).</returns>
+    public static double NormalizedSimilarity(
+        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        double? scoreCutoff = null)
+    {
+        var nd = NormalizedDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
+        var ns = 1.0 - nd;
+
+        return ns < scoreCutoff ? 0.0 : ns;
+    }
+
+    /// <summary>
+    /// Computes the normalized Levenshtein similarity for two strings.
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional minimum normalized similarity threshold.</param>
+    /// <returns>Normalized similarity (1 = identical, 0 = completely different).</returns>
+    public static double NormalizedSimilarity(
+        string source, string target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        double? scoreCutoff = null)
+        => NormalizedSimilarity(source.AsSpan(), target.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
+
+    /// <summary>
+    /// Computes the Levenshtein similarity (maximum possible distance minus actual distance).
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="target">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional minimum similarity threshold.</param>
+    /// <returns>The Levenshtein similarity score.</returns>
+    public static int Similarity(
+        ReadOnlySpan<char> source, ReadOnlySpan<char> target,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        int? scoreCutoff = null)
+    {
+        int len1 = source.Length, len2 = target.Length;
+        var maximum = LevenshteinMaximum(len1, len2, insertCost, deleteCost, replaceCost);
+        var dist = Distance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
+        var sim = maximum - dist;
+        return sim < scoreCutoff ? 0 : sim;
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein similarity for two strings.
+    /// </summary>
+    /// <param name="source">Source string.</param>
+    /// <param name="s2">Target string.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional minimum similarity threshold.</param>
+    /// <returns>The Levenshtein similarity score.</returns>
+    public static int Similarity(
+        string source, string s2,
+        int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
+        int? scoreCutoff = null)
+        => Similarity(source.AsSpan(), s2.AsSpan(), insertCost, deleteCost, replaceCost, scoreCutoff);
+
+    // Private methods (alphabetically)
+    /// <summary>
+    /// Computes the Levenshtein distance between two sequences with custom operation costs using a dynamic programming approach.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <param name="insertCost">Cost of an insertion.</param>
+    /// <param name="deleteCost">Cost of a deletion.</param>
+    /// <param name="replaceCost">Cost of a replacement.</param>
+    /// <param name="scoreCutoff">Optional maximum distance threshold.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    private static int GenericDistance<T>(
+        ReadOnlySpan<T> source, ReadOnlySpan<T> target,
+        int insertCost, int deleteCost, int replaceCost,
+        int? scoreCutoff) where T : IEquatable<T>
+    {
+        var len1 = source.Length;
+        // allocate a single row of len1+1
+        Span<int> row = new int[len1 + 1];
+        // initial: cost of deleting all of s1's prefix
+        for (var i = 0; i <= len1; i++)
+            row[i] = i * deleteCost;
+
+        foreach (var c2 in target)
+        {
+            var prev = row[0];
+            row[0] += insertCost;
+            for (var i = 0; i < len1; i++)
+            {
+                var curr = row[i + 1];
+                var cost = prev;
+                if (!EqualityComparer<T>.Default.Equals(source[i], c2))
+                {
+                    var del = row[i] + deleteCost;
+                    var ins = row[i + 1] + insertCost;
+                    var rep = prev + replaceCost;
+                    cost = del < ins
+                        ? del < rep ? del : rep
+                        : ins < rep ? ins : rep;
+                }
+                prev = curr;
+                row[i + 1] = cost;
+            }
+            if (scoreCutoff.HasValue && row[len1] > scoreCutoff.Value)
+                return scoreCutoff.Value + 1;
+        }
+        return row[len1];
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm (unit weights, zero-alloc).
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    {
+        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return MyersDistanceSingleMachineWord(source, target);
+        }
+
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return MyersDistanceSingleMachineWord(source, target);
+        }
+
+        return MyersDistanceMultipleMachineWords(source, target);
+    }
+
+    /// <summary>
+    /// Computes the Myers bit-parallel VP/VN matrices and final edit distance, dispatching to the appropriate implementation.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="s1">Pattern sequence.</param>
+    /// <param name="s2">Text sequence.</param>
+    /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
+    private static (int Distance, List<ulong[]> VP, List<ulong[]> VN) Matrix<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2) where T : IEquatable<T>
+    {
+        return s1.Length <= 64 
+            ? MatrixSingleMachineWord(s1, s2) 
+            : MatrixMultipleMachineWords(s1, s2);
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance using the Myers bit-parallel algorithm for patterns longer than 64 elements, with a score cutoff.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <param name="scoreCutoff">Maximum allowed distance.</param>
+    /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
+    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
+    {
+        var m = source.Length;
+
+        // number of 64-bit blocks needed to cover pattern length m
+        var blocks = (m + 63) >> 6;
+
+        // build per-character bitmasks over those blocks
+        var charMask = new Dictionary<T, ulong[]>();
+        for (var i = 0; i < m; i++)
+        {
+            var c = source[i];
+            var b = i >> 6;
+            var offset = i & 63;
+
+            if (!charMask.TryGetValue(c, out var maskArr))
+                charMask[c] = maskArr = new ulong[blocks];
+
+            maskArr[b] |= 1UL << offset;
+        }
+        // a zero-mask for characters not in s1
+        var zeroMask = new ulong[blocks];
+
+        // VP/VN state arrays, one ulong per block
+        var VP = new ulong[blocks];
+        var VN = new ulong[blocks];
+
+        // initialize VP so that the low m bits are 1
+        for (var b = 0; b < blocks; b++)
+        {
+            if (b < blocks - 1)
+                VP[b] = ulong.MaxValue;
+            else
+            {
+                var rem = m - ((blocks - 1) << 6);
+                VP[b] = rem == 64 ? ulong.MaxValue : (1UL << rem) - 1;
+            }
+            VN[b] = 0;
+        }
+
+        var last = blocks - 1;
+        // mask for the “highest” bit of the entire pattern (for score update)
+        var highestBitMask = 1UL << ((m - 1) & 63);
+
+        var dist = m;
+
+        // per-iteration working arrays
+        var X = new ulong[blocks];
+        var D0 = new ulong[blocks];
+        var HP = new ulong[blocks];
+        var HN = new ulong[blocks];
+
+        foreach (var c2 in target)
+        {
+            // grab the precomputed mask for this text char
+            var PMitem = charMask.GetValueOrDefault(c2, zeroMask);
+
+            // ========== Myers’s “D0” loop, but with carry across blocks ==========
+            ulong carry = 0;
+            for (var b = 0; b < blocks; b++)
+            {
+                var pm = PMitem[b];
+                var vp = VP[b];
+                var vn = VN[b];
+
+                // ordinary bit-parallel ops
+                var x = pm | vn;
+                X[b] = x;
+                var tmp = x & vp;
+
+                // do tmp + vp + carry, detecting overflow
+                var sum1 = tmp + vp;
+                var c1 = sum1 < tmp ? 1UL : 0UL;
+                var sum = sum1 + carry;
+                var c2o = sum < sum1 ? 1UL : 0UL;
+                carry = c1 | c2o;
+
+                // D0 = ((tmp + vp + carry) ^ vp) | x
+                var d0 = (sum ^ vp) | x;
+                D0[b] = d0;
+
+                // HP/HN before shifting
+                HP[b] = vn | ~(d0 | vp);
+                HN[b] = d0 & vp;
+            }
+
+            // update the current edit distance by inspecting the top bit of the last block
+            if ((HP[last] & highestBitMask) != 0) dist++;
+            if ((HN[last] & highestBitMask) != 0) dist--;
+            if (dist > scoreCutoff)
+                return scoreCutoff.Value + 1;
+
+            // ========== shift HP/HN left by 1 across blocks, then compute new VP/VN ==========
+            ulong carryHP = 1, carryHN = 0;
+            for (var b = 0; b < blocks; b++)
+            {
+                var hp = HP[b];
+                var hn = HN[b];
+
+                // capture the bit that will spill into the next block
+                var hpHigh = hp >> 63;
+                var hnHigh = hn >> 63;
+
+                // shift in the carry bits
+                hp = (hp << 1) | carryHP;
+                hn = (hn << 1) | carryHN;
+
+                // update VP/VN for next round
+                var d0 = D0[b];
+                VP[b] = hn | ~(d0 | hp);
+                VN[b] = hp & d0;
+
+                carryHP = hpHigh;
+                carryHN = hnHigh;
+            }
+        }
+
+        return dist;
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance using the Myers bit-parallel algorithm for patterns longer than 64 elements.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    private static int MyersDistanceMultipleMachineWords<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    {
+        var m = source.Length;
+
+        // number of 64-bit blocks needed to cover pattern length m
+        var blocks = (m + 63) >> 6;
+
+        // build per-character bitmasks over those blocks
+        var charMask = new Dictionary<T, ulong[]>();
+        for (var i = 0; i < m; i++)
+        {
+            var c = source[i];
+            var b = i >> 6;
+            var offset = i & 63;
+
+            if (!charMask.TryGetValue(c, out var maskArr))
+                charMask[c] = maskArr = new ulong[blocks];
+
+            maskArr[b] |= 1UL << offset;
+        }
+        // a zero-mask for characters not in s1
+        var zeroMask = new ulong[blocks];
+
+        // VP/VN state arrays, one ulong per block
+        var VP = new ulong[blocks];
+        var VN = new ulong[blocks];
+
+        // initialize VP so that the low m bits are 1
+        for (var b = 0; b < blocks; b++)
+        {
+            if (b < blocks - 1)
+                VP[b] = ulong.MaxValue;
+            else
+            {
+                var rem = m - ((blocks - 1) << 6);
+                VP[b] = rem == 64 ? ulong.MaxValue : (1UL << rem) - 1;
+            }
+            VN[b] = 0;
+        }
+
+        var last = blocks - 1;
+        // mask for the “highest” bit of the entire pattern (for score update)
+        var highestBitMask = 1UL << ((m - 1) & 63);
+
+        var dist = m;
+
+        // per-iteration working arrays
+        var X = new ulong[blocks];
+        var D0 = new ulong[blocks];
+        var HP = new ulong[blocks];
+        var HN = new ulong[blocks];
+
+        foreach (var c2 in target)
+        {
+            // grab the precomputed mask for this text char
+            var PMitem = charMask.GetValueOrDefault(c2, zeroMask);
+
+            // ========== Myers’s “D0” loop, but with carry across blocks ==========
+            ulong carry = 0;
+            for (var b = 0; b < blocks; b++)
+            {
+                var pm = PMitem[b];
+                var vp = VP[b];
+                var vn = VN[b];
+
+                // ordinary bit-parallel ops
+                var x = pm | vn;
+                X[b] = x;
+                var tmp = x & vp;
+
+                // do tmp + vp + carry, detecting overflow
+                var sum1 = tmp + vp;
+                var c1 = sum1 < tmp ? 1UL : 0UL;
+                var sum = sum1 + carry;
+                var c2o = sum < sum1 ? 1UL : 0UL;
+                carry = c1 | c2o;
+
+                // D0 = ((tmp + vp + carry) ^ vp) | x
+                var d0 = (sum ^ vp) | x;
+                D0[b] = d0;
+
+                // HP/HN before shifting
+                HP[b] = vn | ~(d0 | vp);
+                HN[b] = d0 & vp;
+            }
+
+            // update the current edit distance by inspecting the top bit of the last block
+            if ((HP[last] & highestBitMask) != 0) dist++;
+            if ((HN[last] & highestBitMask) != 0) dist--;
+
+            // ========== shift HP/HN left by 1 across blocks, then compute new VP/VN ==========
+            ulong carryHP = 1, carryHN = 0;
+            for (var b = 0; b < blocks; b++)
+            {
+                var hp = HP[b];
+                var hn = HN[b];
+
+                // capture the bit that will spill into the next block
+                var hpHigh = hp >> 63;
+                var hnHigh = hn >> 63;
+
+                // shift in the carry bits
+                hp = (hp << 1) | carryHP;
+                hn = (hn << 1) | carryHN;
+
+                // update VP/VN for next round
+                var d0 = D0[b];
+                VP[b] = hn | ~(d0 | hp);
+                VN[b] = hp & d0;
+
+                carryHP = hpHigh;
+                carryHN = hnHigh;
+            }
+        }
+
+        return dist;
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance using the Myers bit-parallel algorithm for patterns up to 64 elements, with a score cutoff.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <param name="scoreCutoff">Maximum allowed distance.</param>
+    /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
+    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
+    {
+        var m = source.Length;
+        if (m == 0) return target.Length;
+
+        // initial bitmask: lower m bits set
+        var VP = m < 64 ? (1UL << m) - 1 : ulong.MaxValue;
+        ulong VN = 0;
+        var highestBit = 1UL << (m - 1);
+        var dist = m;
+
+        foreach (var c2 in target)
+        {
+            // build mask for c2: bits set where s1[i] == c2
+            ulong PM = 0;
+            for (var i = 0; i < m; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(source[i], c2))
+                    PM |= 1UL << i;
+            }
+
+            // Myers bit-parallel update
+            var X = PM | VN;
+            var D0 = (((X & VP) + VP) ^ VP) | X;
+            D0 |= VN;
+            var HP = VN | ~(D0 | VP);
+            var HN = D0 & VP;
+
+            if ((HP & highestBit) != 0) dist++;
+            if ((HN & highestBit) != 0) dist--;
+
+            if (dist > scoreCutoff)
+                return scoreCutoff + 1;
+
+            // shift in
+            HP = (HP << 1) | 1;
+            HN <<= 1;
+            VP = HN | ~(D0 | HP);
+            VN = HP & D0;
+        }
+
+        return dist;
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance using the Myers bit-parallel algorithm for patterns up to 64 elements.
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    private static int MyersDistanceSingleMachineWord<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    {
+        var m = source.Length;
+        if (m == 0) return target.Length;
+
+        // initial bitmask: lower m bits set
+        var VP = m < 64 ? (1UL << m) - 1 : ulong.MaxValue;
+        ulong VN = 0;
+        var highestBit = 1UL << (m - 1);
+        var dist = m;
+
+        foreach (var c2 in target)
+        {
+            // build mask for c2: bits set where s1[i] == c2
+            ulong PM = 0;
+            for (var i = 0; i < m; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(source[i], c2))
+                    PM |= 1UL << i;
+            }
+
+            // Myers bit-parallel update
+            var X = PM | VN;
+            var D0 = (((X & VP) + VP) ^ VP) | X;
+            D0 |= VN;
+            var HP = VN | ~(D0 | VP);
+            var HN = D0 & VP;
+
+            if ((HP & highestBit) != 0) dist++;
+            if ((HN & highestBit) != 0) dist--;
+
+            // shift in
+            HP = (HP << 1) | 1;
+            HN <<= 1;
+            VP = HN | ~(D0 | HP);
+            VN = HP & D0;
+        }
+
+        return dist;
     }
 }
