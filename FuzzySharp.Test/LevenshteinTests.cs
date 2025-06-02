@@ -1,4 +1,6 @@
-﻿using NUnit.Framework;
+﻿using System.Collections.Generic;
+using NUnit.Framework;
+using Raffinert.FuzzySharp.Benchmarks;
 
 namespace Raffinert.FuzzySharp.Test;
 
@@ -28,5 +30,28 @@ public class LevenshteinTests
     {
         int distance = Levenshtein.Distance(s1, s2);
         Assert.AreEqual(expectedDistance, distance);
+    }
+    
+    [Test]
+    public void TestLevenshteinDistance()
+    {
+        var wordA = new string('A', 4112);
+        var wordB = new string('B', 4112);
+        int distance = Levenshtein.Distance(wordA, wordB);
+        int distance1 = Levenshtein.Distance(wordA, wordA);
+        Assert.AreEqual(4112, distance);
+
+        var words = RandomWords.Create(50, 1024);
+
+        List<int> distances = [];
+        
+        for (var i = 0; i < words.Length; i++)
+        {
+            for (int j = 0; j < words.Length; j++)
+            {
+                var d = Levenshtein.Distance(words[i], words[j]);
+                distances.Add(d);
+            }
+        }
     }
 }

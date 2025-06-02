@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>NET9.0;NET8.0;netframework4.7.2</TargetFrameworks>
+    <!--<TargetFrameworks>NET9.0;NET8.0;netframework4.7.2</TargetFrameworks>-->
+    <TargetFrameworks>NET9.0;NET8.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
 	<LangVersion>12.0</LangVersion>
 	<AssemblyName>Raffinert.$(MSBuildProjectName)</AssemblyName>

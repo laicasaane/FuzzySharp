@@ -1,0 +1,421 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System;
+using System.Buffers;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using Microsoft.Collections.Extensions;
+
+namespace Raffinert.FuzzySharp.Utils;
+
+/// <summary>
+/// A lightweight Dictionary with three principal differences compared to <see cref="Dictionary{TKey, TValue}"/>,
+/// rewritten to use pooled arrays to avoid heap allocations after initial creation.
+///
+/// 1) It is possible to do "get or add" in a single lookup using <see cref="GetOrAddValueRef(TKey)"/>. For
+///    values that are value types, this also saves a copy of the value.
+/// 2) It assumes it is cheap to equate values.
+/// 3) It assumes the keys implement <see cref="IEquatable{TKey}"/> or else Equals() and they are cheap and sufficient.
+/// 4) Buckets and entries arrays are rented from <see cref="ArrayPool{T}"/>, and returned when cleared or resized,
+///    minimizing allocations.
+/// </summary>
+[DebuggerTypeProxy(typeof(DictionarySlimPooledDebugView<,>))]
+[DebuggerDisplay("Count = {Count}")]
+public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
+{
+    // We want to initialize without allocating large arrays. We still keep one-element static arrays
+    // for the initial (empty) state to avoid modulo/divide-by-zero, but all real buckets/entries come from the pool.
+    private static readonly Entry[] s_emptyEntries = new Entry[1];
+    private static readonly int[] s_emptyBuckets = new int[1]; // value 0 implies empty
+
+    private int _count;
+    private int _freeList = -1; // 0-based index into _entries of head of free chain; -1 means empty
+    private int[] _buckets;
+    private Entry[] _entries;
+
+    private readonly ArrayPool<int> _bucketsPool;
+    private readonly ArrayPool<Entry> _entriesPool;
+
+    [DebuggerDisplay("({key}, {value})->{next}")]
+    private struct Entry
+    {
+        public TKey key;
+        public TValue value;
+        // 0-based index of next entry in chain: -1 means end of chain.
+        // If negative less than -1, it encodes that this entry is on the free list:
+        //    next = -3 - previousFreeIndex. E.g. -3 means index 0 is free, -4 means index 1 is free, etc.
+        public int next;
+    }
+
+    /// <summary>
+    /// Construct with default capacity.
+    /// </summary>
+    public DictionarySlimPooled()
+    {
+        _bucketsPool = ArrayPool<int>.Shared;
+        _entriesPool = ArrayPool<Entry>.Shared;
+        _buckets = s_emptyBuckets;
+        _entries = s_emptyEntries;
+    }
+
+    /// <summary>
+    /// Construct with at least the specified capacity for
+    /// entries before resizing must occur.
+    /// </summary>
+    /// <param name="capacity">Requested minimum capacity</param>
+    public DictionarySlimPooled(int capacity)
+    {
+        if (capacity < 0)
+            ThrowHelper.ThrowCapacityArgumentOutOfRangeException();
+
+        _bucketsPool = ArrayPool<int>.Shared;
+        _entriesPool = ArrayPool<Entry>.Shared;
+
+        if (capacity < 2)
+            capacity = 2; // 1 would indicate the dummy array
+
+        int size = HashHelpers.PowerOf2(capacity);
+        _buckets = _bucketsPool.Rent(size);
+        _entries = _entriesPool.Rent(size);
+
+        // Clear the rented arrays for correctness
+        Array.Clear(_buckets, 0, size);
+        Array.Clear(_entries, 0, size);
+    }
+
+    /// <summary>
+    /// Count of entries in the dictionary.
+    /// </summary>
+    public int Count => _count;
+
+    /// <summary>
+    /// Clears the dictionary. Note that this invalidates any active enumerators.
+    /// Returns rented arrays to their pools.
+    /// </summary>
+    public void Clear()
+    {
+        if (_entries != s_emptyEntries)
+        {
+            // Return arrays to the pool before resetting to static empty
+            //_entriesPool.Return(_entries, clearArray: true);
+            //_bucketsPool.Return(_buckets, clearArray: true);
+            _entriesPool.Return(_entries);
+            _bucketsPool.Return(_buckets);
+
+            _entries = s_emptyEntries;
+            _buckets = s_emptyBuckets;
+        }
+
+        _count = 0;
+        _freeList = -1;
+    }
+
+    /// <summary>
+    /// Looks for the specified key in the dictionary.
+    /// </summary>
+    /// <param name="key">Key to look for</param>
+    /// <returns>true if the key is present, otherwise false</returns>
+    public bool ContainsKey(TKey key)
+    {
+        if (key == null) ThrowHelper.ThrowKeyArgumentNullException();
+
+        var entries = _entries;
+        int[] buckets = _buckets;
+        int bucketMask = buckets.Length - 1;
+        int hash = key.GetHashCode() & bucketMask;
+
+        int collisionCount = 0;
+        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        {
+            if (key.Equals(entries[i].key))
+                return true;
+
+            if (collisionCount == entries.Length)
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+
+            collisionCount++;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the value if present for the specified key.
+    /// </summary>
+    /// <param name="key">Key to look for</param>
+    /// <param name="value">Value found, otherwise default(TValue)</param>
+    /// <returns>true if the key is present, otherwise false</returns>
+    public bool TryGetValue(TKey key, out TValue value)
+    {
+        if (key == null) ThrowHelper.ThrowKeyArgumentNullException();
+
+        var entries = _entries;
+        int[] buckets = _buckets;
+        int bucketMask = buckets.Length - 1;
+        int hash = key.GetHashCode() & bucketMask;
+
+        int collisionCount = 0;
+        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        {
+            if (key.Equals(entries[i].key))
+            {
+                value = entries[i].value;
+                return true;
+            }
+
+            if (collisionCount == entries.Length)
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+
+            collisionCount++;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Removes the entry if present with the specified key.
+    /// </summary>
+    /// <param name="key">Key to look for</param>
+    /// <returns>true if the key is present, false if it is not</returns>
+    public bool Remove(TKey key)
+    {
+        if (key == null) ThrowHelper.ThrowKeyArgumentNullException();
+
+        var entries = _entries;
+        int[] buckets = _buckets;
+        int bucketMask = buckets.Length - 1;
+        int hash = key.GetHashCode() & bucketMask;
+
+        int last = -1;
+        int i = buckets[hash] - 1;
+        int collisionCount = 0;
+
+        while (i != -1)
+        {
+            ref Entry candidate = ref entries[i];
+            if (candidate.key.Equals(key))
+            {
+                if (last != -1)
+                {
+                    entries[last].next = candidate.next;
+                }
+                else
+                {
+                    buckets[hash] = candidate.next + 1;
+                }
+
+                // Clear entry and add to free list
+                candidate = default;
+                candidate.next = -3 - _freeList;
+                _freeList = i;
+                _count--;
+                return true;
+            }
+
+            last = i;
+            i = candidate.next;
+
+            if (collisionCount == entries.Length)
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+
+            collisionCount++;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the value for the specified key, or, if the key is not present,
+    /// adds an entry and returns the value by ref. This makes it possible to
+    /// add or update a value in a single look up operation.
+    /// </summary>
+    /// <param name="key">Key to look for</param>
+    /// <returns>Reference to the new or existing value</returns>
+    public ref TValue GetOrAddValueRef(TKey key)
+    {
+        if (key == null) ThrowHelper.ThrowKeyArgumentNullException();
+
+        var entries = _entries;
+        int[] buckets = _buckets;
+        int bucketMask = buckets.Length - 1;
+        int hash = key.GetHashCode() & bucketMask;
+
+        int collisionCount = 0;
+        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        {
+            if (key.Equals(entries[i].key))
+                return ref entries[i].value;
+
+            if (collisionCount == entries.Length)
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+
+            collisionCount++;
+        }
+
+        return ref AddKey(key, hash);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private ref TValue AddKey(TKey key, int bucketIndex)
+    {
+        var entries = _entries;
+        int[] buckets = _buckets;
+        int bucketMask = buckets.Length - 1;
+        int entryIndex;
+
+        if (_freeList != -1)
+        {
+            entryIndex = _freeList;
+            _freeList = -3 - entries[_freeList].next;
+        }
+        else
+        {
+            if (_entries == s_emptyEntries || _count == entries.Length)
+            {
+                entries = Resize();
+                buckets = _buckets;
+                bucketMask = buckets.Length - 1;
+            }
+
+            entryIndex = _count;
+            _count++;
+        }
+
+        entries[entryIndex].key = key;
+        entries[entryIndex].next = buckets[bucketIndex] - 1;
+        buckets[bucketIndex] = entryIndex + 1;
+
+        return ref entries[entryIndex].value;
+    }
+
+    private Entry[] Resize()
+    {
+        int oldSize = _entries == s_emptyEntries ? 0 : _entries.Length;
+        int newSize = oldSize == 0 ? 2 : oldSize * 2;
+        if ((uint)newSize > (uint)int.MaxValue)
+            throw new InvalidOperationException("DictionarySlimPooled: Capacity overflow.");
+
+        // Rent new arrays
+        var newBuckets = _bucketsPool.Rent(newSize);
+        var newEntries = _entriesPool.Rent(newSize);
+
+        // Clear newly rented arrays
+        Array.Clear(newBuckets, 0, newSize);
+        Array.Clear(newEntries, 0, newSize);
+
+        // Copy existing data
+        if (oldSize > 0)
+        {
+            Array.Copy(_entries, 0, newEntries, 0, _count);
+            // Recompute buckets
+            for (int i = 0; i < _count; i++)
+            {
+                int hash = newEntries[i].key.GetHashCode() & (newSize - 1);
+                newEntries[i].next = newBuckets[hash] - 1;
+                newBuckets[hash] = i + 1;
+            }
+
+            // Return old arrays to pool
+            _entriesPool.Return(_entries, clearArray: true);
+            _bucketsPool.Return(_buckets, clearArray: true);
+        }
+
+        _buckets = newBuckets;
+        _entries = newEntries;
+        return _entries;
+    }
+
+    /// <summary>
+    /// Gets an enumerator over the dictionary
+    /// </summary>
+    public Enumerator GetEnumerator() => new Enumerator(this);
+
+    IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => new Enumerator(this);
+
+    IEnumerator IEnumerable.GetEnumerator() => new Enumerator(this);
+
+    /// <summary>
+    /// Enumerator
+    /// </summary>
+    public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+    {
+        private readonly DictionarySlimPooled<TKey, TValue> _dictionary;
+        private int _index;
+        private int _remaining; // remaining count to enumerate
+        private KeyValuePair<TKey, TValue> _current;
+
+        internal Enumerator(DictionarySlimPooled<TKey, TValue> dictionary)
+        {
+            _dictionary = dictionary;
+            _index = 0;
+            _remaining = dictionary._count;
+            _current = default;
+        }
+
+        /// <summary>
+        /// Move to next
+        /// </summary>
+        public bool MoveNext()
+        {
+            if (_remaining == 0)
+            {
+                _current = default;
+                return false;
+            }
+
+            var entries = _dictionary._entries;
+            while (_index < entries.Length && entries[_index].next < -1)
+            {
+                _index++;
+            }
+
+            if (_index >= entries.Length)
+            {
+                _current = default;
+                return false;
+            }
+
+            _current = new KeyValuePair<TKey, TValue>(
+                entries[_index].key,
+                entries[_index].value);
+
+            _index++;
+            _remaining--;
+            return true;
+        }
+
+        public KeyValuePair<TKey, TValue> Current => _current;
+        object IEnumerator.Current => _current;
+        public void Reset()
+        {
+            _index = 0;
+            _remaining = _dictionary._count;
+            _current = default;
+        }
+        public void Dispose() { }
+    }
+
+    public void Dispose()
+    {
+        Clear();
+    }
+}
+
+internal sealed class DictionarySlimPooledDebugView<K, V> where K : IEquatable<K>
+{
+    private readonly DictionarySlimPooled<K, V> _dictionary;
+
+    public DictionarySlimPooledDebugView(DictionarySlimPooled<K, V> dictionary)
+    {
+        _dictionary = dictionary ?? throw new ArgumentNullException(nameof(dictionary));
+    }
+
+    [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
+    public KeyValuePair<K, V>[] Items => _dictionary.ToArray();
+}
