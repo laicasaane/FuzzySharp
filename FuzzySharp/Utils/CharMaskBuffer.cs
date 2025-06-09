@@ -1,12 +1,9 @@
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using Microsoft.Collections.Extensions;
-using Raffinert.FuzzySharp.Utils;
 
-namespace Raffinert.FuzzySharp;
+namespace Raffinert.FuzzySharp.Utils;
 
-internal sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatable<T>
+public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatable<T>
 {
     private readonly ArrayPool<ulong> _pool;
     private readonly DictionarySlimPooled<T, int> _indexMap;
@@ -15,13 +12,13 @@ internal sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquata
     private int _capacity; // max number of characters (buffered)
     private int _next;
 
-    public CharMaskBuffer(int estimatedCharCount, int blocks, ArrayPool<ulong>? pool = null)
+    public CharMaskBuffer(int estimatedCharCount, int blocks, ArrayPool<ulong> pool = null)
     {
         _pool = pool ?? ArrayPool<ulong>.Shared;
         _blocks = blocks;
         _capacity = estimatedCharCount;
         _buffer = _pool.Rent(_capacity * _blocks);
-        _indexMap = new DictionarySlimPooled<T, int>();
+        _indexMap = new DictionarySlimPooled<T, int>(estimatedCharCount);
         _next = 0;
     }
 
@@ -42,22 +39,6 @@ internal sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquata
             var slice = new Span<ulong>(_buffer, (index-1) * _blocks, _blocks);
             slice.Clear();
         }
-
-        //if (!_indexMap.TryGetValue(key, out var index))
-        //{
-        //    if (_next >= _capacity)
-        //    {
-        //        GrowBuffer(); // resize before assigning
-        //    }
-
-        //    index = _next++;
-        //    _indexMap[key]
-        //    _indexMap[key] = index;
-
-        //    // Clear new slice
-        //    var slice = new Span<ulong>(_buffer, index * _blocks, _blocks);
-        //    slice.Clear();
-        //}
 
         int block = position >> 6;
         int offset = position & 63;
@@ -83,7 +64,7 @@ internal sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquata
     {
         if (_indexMap.TryGetValue(key, out var index))
         {
-            mask = new ReadOnlySpan<ulong>(_buffer, index * _blocks, _blocks);
+            mask = new ReadOnlySpan<ulong>(_buffer, (index-1) * _blocks, _blocks);
             return true;
         }
         mask = default;

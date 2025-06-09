@@ -40,7 +40,7 @@ internal static class PartialRatioStrategy<T> where T : IEquatable<T>
 
             var longSubstr = (ReadOnlySpan<T>)longer.AsSpan()[longStart..longEnd];
 
-            double ratio = Indel.NormalizedSimilarity(new ReadOnlySpan<T>(shorter), longSubstr);
+            double ratio = IndelLcs.NormalizedSimilarity(new ReadOnlySpan<T>(shorter), longSubstr);
 
             if (ratio > .995)
             {

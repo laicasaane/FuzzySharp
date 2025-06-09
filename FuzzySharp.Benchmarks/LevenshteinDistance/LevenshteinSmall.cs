@@ -1,5 +1,5 @@
 ﻿using BenchmarkDotNet.Attributes;
-
+using Raffinert.FuzzySharp.Benchmarks.Utils;
 using FuzzLevenshtein = Raffinert.FuzzySharp.Levenshtein;
 using QuickLevenshtein = Quickenshtein.Levenshtein;
 using FastLevenshtein = Fastenshtein.Levenshtein;

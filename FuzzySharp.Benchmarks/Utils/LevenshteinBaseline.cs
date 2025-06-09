@@ -1,4 +1,4 @@
-namespace Raffinert.FuzzySharp.Benchmarks;
+namespace Raffinert.FuzzySharp.Benchmarks.Utils;
 
 public static class LevenshteinBaseline
 {

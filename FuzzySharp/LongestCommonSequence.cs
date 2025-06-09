@@ -326,7 +326,7 @@ public static class LongestCommonSequence
     /// <param name="scoreCutoff">Optional minimum similarity threshold.</param>
     /// <returns>The length of the longest common subsequence, or 0 if below cutoff.</returns>
     internal static int BlockSimilarityMultipleULongs<T>(
-        Dictionary<T, ulong[]> block,
+        CharMaskBuffer<T> block,
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
         int? scoreCutoff = null
@@ -350,10 +350,11 @@ public static class LongestCommonSequence
         // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
         foreach (T ch in s2)
         {
-            block.TryGetValue(ch, out var M);
-            // if no occurrences in s1, M will be all-zeros
-            if (M == null) M = new ulong[segCount];
-
+            if(!block.TryGetMask(ch, out var M))
+            {
+                M = new ulong[segCount];
+            }
+            
             // u = S & M
             var u = new ulong[segCount];
             for (int i = 0; i < segCount; i++)

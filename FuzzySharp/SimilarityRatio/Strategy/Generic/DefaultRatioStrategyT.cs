@@ -11,7 +11,7 @@ internal static class DefaultRatioStrategy<T> where T : IEquatable<T>
             return 0;
         }
             
-        var result = (int)Math.Round(100 * Indel.NormalizedSimilarity(new ReadOnlySpan<T>(input1), new ReadOnlySpan<T>(input2)));
+        var result = (int)Math.Round(100 * IndelLcs.NormalizedSimilarity(new ReadOnlySpan<T>(input1), new ReadOnlySpan<T>(input2)));
 
         return result;
     }

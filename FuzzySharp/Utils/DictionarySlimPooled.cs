@@ -13,6 +13,7 @@ using Microsoft.Collections.Extensions;
 
 namespace Raffinert.FuzzySharp.Utils;
 
+// Adapted to use pooled arrays from the .NET Collections Extensions project
 /// <summary>
 /// A lightweight Dictionary with three principal differences compared to <see cref="Dictionary{TKey, TValue}"/>,
 /// rewritten to use pooled arrays to avoid heap allocations after initial creation.
@@ -26,12 +27,12 @@ namespace Raffinert.FuzzySharp.Utils;
 /// </summary>
 [DebuggerTypeProxy(typeof(DictionarySlimPooledDebugView<,>))]
 [DebuggerDisplay("Count = {Count}")]
-public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
+internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
 {
     // We want to initialize without allocating large arrays. We still keep one-element static arrays
     // for the initial (empty) state to avoid modulo/divide-by-zero, but all real buckets/entries come from the pool.
-    private static readonly Entry[] s_emptyEntries = new Entry[1];
-    private static readonly int[] s_emptyBuckets = new int[1]; // value 0 implies empty
+    private static readonly Entry[] InitialEntries = new Entry[1];
+    private static readonly int[] InitialBuckets = HashHelpers.SizeOneIntArray; // value 0 implies empty
 
     private int _count;
     private int _freeList = -1; // 0-based index into _entries of head of free chain; -1 means empty
@@ -59,8 +60,8 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
     {
         _bucketsPool = ArrayPool<int>.Shared;
         _entriesPool = ArrayPool<Entry>.Shared;
-        _buckets = s_emptyBuckets;
-        _entries = s_emptyEntries;
+        _buckets = InitialBuckets;
+        _entries = InitialEntries;
     }
 
     /// <summary>
@@ -99,16 +100,14 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
     /// </summary>
     public void Clear()
     {
-        if (_entries != s_emptyEntries)
+        if (_entries != InitialEntries)
         {
             // Return arrays to the pool before resetting to static empty
-            //_entriesPool.Return(_entries, clearArray: true);
-            //_bucketsPool.Return(_buckets, clearArray: true);
             _entriesPool.Return(_entries);
             _bucketsPool.Return(_buckets);
 
-            _entries = s_emptyEntries;
-            _buckets = s_emptyBuckets;
+            _entries = InitialEntries;
+            _buckets = InitialBuckets;
         }
 
         _count = 0;
@@ -252,10 +251,10 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
             if (key.Equals(entries[i].key))
                 return ref entries[i].value;
 
-            if (collisionCount == entries.Length)
-                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+            //if (collisionCount == entries.Length)
+            //    ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
 
-            collisionCount++;
+            //collisionCount++;
         }
 
         return ref AddKey(key, hash);
@@ -266,7 +265,6 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
     {
         var entries = _entries;
         int[] buckets = _buckets;
-        int bucketMask = buckets.Length - 1;
         int entryIndex;
 
         if (_freeList != -1)
@@ -276,11 +274,10 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
         }
         else
         {
-            if (_entries == s_emptyEntries || _count == entries.Length)
+            if (_entries == InitialEntries || _count == entries.Length)
             {
                 entries = Resize();
                 buckets = _buckets;
-                bucketMask = buckets.Length - 1;
             }
 
             entryIndex = _count;
@@ -296,7 +293,7 @@ public class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollecti
 
     private Entry[] Resize()
     {
-        int oldSize = _entries == s_emptyEntries ? 0 : _entries.Length;
+        int oldSize = _entries == InitialEntries ? 0 : _entries.Length;
         int newSize = oldSize == 0 ? 2 : oldSize * 2;
         if ((uint)newSize > (uint)int.MaxValue)
             throw new InvalidOperationException("DictionarySlimPooled: Capacity overflow.");

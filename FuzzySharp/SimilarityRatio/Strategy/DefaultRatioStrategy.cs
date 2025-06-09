@@ -10,6 +10,6 @@ internal static class DefaultRatioStrategy
         {
             return 0;
         }
-        return (int)Math.Round(100 * Indel.NormalizedSimilarity(input1.AsSpan(), input2.AsSpan()));
+        return (int)Math.Round(100 * IndelLcs.NormalizedSimilarity(input1.AsSpan(), input2.AsSpan()));
     }
 }

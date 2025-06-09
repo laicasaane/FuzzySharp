@@ -57,7 +57,7 @@ public static class Levenshtein
 
         if (insertCost == 1 && deleteCost == 1 && replaceCost == 2)
         {
-            return Indel.Distance(source, target, scoreCutoff: scoreCutoff);
+            return IndelLcs.Distance(source, target, scoreCutoff: scoreCutoff);
         }
 
         SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
@@ -81,17 +81,44 @@ public static class Levenshtein
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleULong(source, target, scoreCutoff);
+            return BitParallelDistanceSingleULong(source, target, scoreCutoff);
         }
 
         SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         if (source.Length <= 64)
         {
-            return MyersDistanceSingleULong(source, target, scoreCutoff);
+            return BitParallelDistanceSingleULong(source, target, scoreCutoff);
         }
 
-        return MyersDistanceMultipleULongs(source, target, scoreCutoff);
+        return BitParallelDistanceMultipleULongs(source, target, scoreCutoff);
+    }
+
+    /// <summary>
+    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm (unit weights, zero-alloc).
+    /// </summary>
+    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="target">Target sequence.</param>
+    /// <returns>The Levenshtein distance.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    {
+        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return BitParallelDistanceSingleULong(source, target);
+        }
+
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
+
+        if (source.Length <= 64)
+        {
+            return BitParallelDistanceSingleULong(source, target);
+        }
+
+        return BitParallelDistanceMultipleULongs(source, target);
     }
 
     /// <summary>
@@ -658,33 +685,6 @@ public static class Levenshtein
     }
 
     /// <summary>
-    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm (unit weights, zero-alloc).
-    /// </summary>
-    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="target">Target sequence.</param>
-    /// <returns>The Levenshtein distance.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
-    {
-        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleULong(source, target);
-        }
-
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return MyersDistanceSingleULong(source, target);
-        }
-
-        return MyersDistanceMultipleULongs(source, target);
-    }
-
-    /// <summary>
     /// Computes the Myers bit-parallel VP/VN matrices and final edit distance, dispatching to the appropriate implementation.
     /// </summary>
     /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
@@ -706,7 +706,7 @@ public static class Levenshtein
     /// Uses a dictionary to store per‐character bitmasks rented from ArrayPool, and uses stackalloc if
     /// 6*blocks ≤ STACKALLOC_THRESHOLD_ULONGS; otherwise allocates a new ulong[] on the heap for the six lanes.
     /// </summary>
-    public static int MyersDistanceMultipleULongs<T>(
+    public static int BitParallelDistanceMultipleULongs<T>(
         ReadOnlySpan<T> source,
         ReadOnlySpan<T> target,
         int? scoreCutoff
@@ -770,12 +770,12 @@ public static class Levenshtein
     /// <summary>
     /// Computes the Levenshtein distance (Myers’s bit‐parallel over >64 bits) without cutoff.
     /// </summary>
-    public static int MyersDistanceMultipleULongs<T>(
+    public static int BitParallelDistanceMultipleULongs<T>(
         ReadOnlySpan<T> source,
         ReadOnlySpan<T> target
     ) where T : IEquatable<T>
     {
-        return MyersDistanceMultipleULongs(source, target, scoreCutoff: null);
+        return BitParallelDistanceMultipleULongs(source, target, scoreCutoff: null);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -901,7 +901,7 @@ public static class Levenshtein
     ///// <param name="target">Target sequence.</param>
     ///// <param name="scoreCutoff">Maximum allowed distance.</param>
     ///// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
-    //private static int MyersDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
+    //private static int BitParallelDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int? scoreCutoff) where T : IEquatable<T>
     //{
     //    var m = source.Length;
 
@@ -1028,7 +1028,7 @@ public static class Levenshtein
     ///// <param name="source">Source sequence.</param>
     ///// <param name="target">Target sequence.</param>
     ///// <returns>The Levenshtein distance.</returns>
-    //private static int MyersDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    //private static int BitParallelDistanceMultipleULongs<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
     //{
     //    var m = source.Length;
 
@@ -1154,7 +1154,7 @@ public static class Levenshtein
     /// <param name="target">Target sequence.</param>
     /// <param name="scoreCutoff">Maximum allowed distance.</param>
     /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
-    private static int MyersDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
+    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;
@@ -1205,7 +1205,7 @@ public static class Levenshtein
     /// <param name="source">Source sequence.</param>
     /// <param name="target">Target sequence.</param>
     /// <returns>The Levenshtein distance.</returns>
-    private static int MyersDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;

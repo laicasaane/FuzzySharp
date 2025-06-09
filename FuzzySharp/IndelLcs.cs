@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Raffinert.FuzzySharp.Utils;
+
 namespace Raffinert.FuzzySharp;
 
 /// <summary>
 /// Provides static methods for calculating the Indel (insertion-deletion) distance and similarity between sequences.
 /// Implements algorithms inspired by RapidFuzz's Indel distance implementation.
 /// </summary>
-public static class Indel
+public static class IndelLcs
 {
     /// <summary>
     /// Computes the Indel distance using precomputed block data for the first sequence.
@@ -19,7 +21,7 @@ public static class Indel
     /// <param name="scoreCutoff">Optional maximum distance threshold. If the distance exceeds this value, returns scoreCutoff + 1.</param>
     /// <returns>The Indel distance between the two sequences.</returns>
     public static int BlockDistance<T>(
-        Dictionary<T, ulong[]> block,
+        CharMaskBuffer<T> block,
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
         int? scoreCutoff = null) where T : IEquatable<T>
@@ -43,7 +45,7 @@ public static class Indel
     /// <param name="scoreCutoff">Optional maximum normalized distance threshold. If the distance exceeds this value, returns 1.</param>
     /// <returns>The normalized Indel distance between the two sequences.</returns>
     public static double BlockNormalizedDistance<T>(
-        Dictionary<T, ulong[]> block,
+        CharMaskBuffer<T> block,
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
         int? scoreCutoff = null) where T : IEquatable<T>
@@ -68,7 +70,7 @@ public static class Indel
     /// <param name="scoreCutoff">Optional minimum similarity threshold. If the similarity is below this value, returns 0.</param>
     /// <returns>The normalized Indel similarity between the two sequences.</returns>
     public static double BlockNormalizedSimilarity<T>(
-        Dictionary<T, ulong[]> block,
+        CharMaskBuffer<T> block,
         ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
         int? scoreCutoff = null) where T : IEquatable<T>

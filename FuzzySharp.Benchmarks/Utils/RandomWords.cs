@@ -1,4 +1,4 @@
-namespace Raffinert.FuzzySharp.Benchmarks;
+namespace Raffinert.FuzzySharp.Benchmarks.Utils;
 
 // original https://github.com/DanHarltey/Fastenshtein/blob/master/benchmarks/Fastenshtein.Benchmarking/RandomWords.cs
 public static class RandomWords
