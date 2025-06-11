@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Raffinert.FuzzySharp.Utils;
+using System;
 using System.Runtime.CompilerServices;
-using Raffinert.FuzzySharp.Utils;
 
 namespace Raffinert.FuzzySharp;
 
@@ -104,6 +103,7 @@ public static class IndelLcs
             processor(ref s1);
             processor(ref s2);
         }
+
         var maximum = s1.Length + s2.Length;
         var lcsSim = LongestCommonSequence.Similarity(s1, s2);
         var dist = maximum - 2 * lcsSim;
@@ -133,6 +133,7 @@ public static class IndelLcs
             processor(ref s1);
             processor(ref s2);
         }
+
         var maximum = s1.Length + s2.Length;
         var dist = Distance(s1, s2);
         var normDist = maximum == 0 ? 0 : dist / (double)maximum;

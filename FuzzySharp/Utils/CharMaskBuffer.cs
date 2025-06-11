@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 
 namespace Raffinert.FuzzySharp.Utils;
@@ -9,8 +9,9 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
     private readonly DictionarySlimPooled<T, int> _indexMap;
     private ulong[] _buffer;
     private readonly int _blocks;
-    private int _capacity; // max number of characters (buffered)
+    private int _capacity;
     private int _next;
+    private readonly ulong[] _zeroMask;
 
     public CharMaskBuffer(int estimatedCharCount, int blocks, ArrayPool<ulong> pool = null)
     {
@@ -18,6 +19,8 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
         _blocks = blocks;
         _capacity = estimatedCharCount;
         _buffer = _pool.Rent(_capacity * _blocks);
+        _zeroMask = _pool.Rent(_blocks);
+        Array.Clear(_zeroMask, 0, _blocks);
         _indexMap = new DictionarySlimPooled<T, int>(estimatedCharCount);
         _next = 0;
     }
@@ -30,18 +33,17 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
         {
             if (_next >= _capacity)
             {
-                GrowBuffer(); // resize before assigning
+                GrowBuffer();
             }
 
             index = ++_next;
 
-            // Clear new slice
-            var slice = new Span<ulong>(_buffer, (index-1) * _blocks, _blocks);
-            slice.Clear();
+            Array.Clear(_buffer, (index - 1) * _blocks, _blocks);
         }
 
         int block = position >> 6;
         int offset = position & 63;
+
         _buffer[(index - 1) * _blocks + block] |= 1UL << offset;
     }
 
@@ -64,11 +66,16 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
     {
         if (_indexMap.TryGetValue(key, out var index))
         {
-            mask = new ReadOnlySpan<ulong>(_buffer, (index-1) * _blocks, _blocks);
+            mask = new ReadOnlySpan<ulong>(_buffer, (index - 1) * _blocks, _blocks);
             return true;
         }
         mask = default;
         return false;
+    }
+
+    public ReadOnlySpan<ulong> GetOrZero(T key)
+    {
+        return TryGetMask(key, out var mask) ? mask : _zeroMask;
     }
 
     public ReadOnlySpan<ulong> GetOrDefault(T key, ReadOnlySpan<ulong> fallback)
@@ -82,6 +89,7 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
     public void Dispose()
     {
         _pool.Return(_buffer);
+        _pool.Return(_zeroMask);
         _indexMap.Dispose();
     }
 }

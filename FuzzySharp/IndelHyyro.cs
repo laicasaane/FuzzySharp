@@ -1,7 +1,6 @@
 ﻿using Raffinert.FuzzySharp.Utils;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Raffinert.FuzzySharp;
@@ -173,7 +172,7 @@ public static class IndelHyyro
             int optimistic = D - (n - j - 1);
             if (optimistic > scoreCutoff)
                 return optimistic;
-            
+
         }
         return D;
     }
@@ -239,7 +238,7 @@ public static class IndelHyyro
 
         return m + n - 2 * bestLcs;
     }
-    
+
     public static int BitParallelDistanceSingleULong0<T>(ReadOnlySpan<T> pattern,
                                        ReadOnlySpan<T> text,
                                        int? scoreCutoff = null)
@@ -450,7 +449,7 @@ public static class IndelHyyro
     //    int n = text.Length;
     //    if (m == 0)
     //        return n;
-        
+
     //    // Preprocessing: build match masks
     //    //var M = new Dictionary<char, ulong>();
     //    //for (int i = 0; i < m; i++)
@@ -664,7 +663,7 @@ public static class IndelHyyro
         for (int i = 0; i < m; i++)
             charMask.AddBit(s1[i], i);
 
-        int totalScratch = 7 * blocks;
+        int totalScratch = 6 * blocks;
         int result;
 
         if (totalScratch <= STACKALLOC_THRESHOLD_ULONGS)
@@ -704,10 +703,8 @@ public static class IndelHyyro
         var VN = scratch.Slice(1 * blocks, blocks);
         var X = scratch.Slice(2 * blocks, blocks);
         var D = scratch.Slice(3 * blocks, blocks);
-        var zeroMask = scratch.Slice(4 * blocks, blocks);
 
         // Clear what needs clearing
-        zeroMask.Clear();
         VP.Clear();
         VN.Clear();
 
@@ -717,7 +714,7 @@ public static class IndelHyyro
 
         foreach (var c2 in target)
         {
-            var M = charMask.GetOrDefault(c2, zeroMask);
+            var M = charMask.GetOrZero(c2);
 
             // X = M | S  (we reuse VN for “previous S” here)
             // actually: VN holds the prior S

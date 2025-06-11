@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Raffinert.FuzzySharp.Utils;
+using System;
 
 namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy;
 
@@ -10,6 +11,12 @@ internal static class DefaultRatioStrategy
         {
             return 0;
         }
-        return (int)Math.Round(100 * IndelLcs.NormalizedSimilarity(input1.AsSpan(), input2.AsSpan()));
+
+        var input1Span = input1.AsSpan();
+        var input2Span = input2.AsSpan();
+
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref input1Span, ref input2Span);
+
+        return (int)Math.Round(100 * IndelLcs.NormalizedSimilarity(input1Span, input2Span));
     }
 }

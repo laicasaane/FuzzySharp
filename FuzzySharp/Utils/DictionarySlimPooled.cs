@@ -1,7 +1,8 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Microsoft.Collections.Extensions;
 using System;
 using System.Buffers;
 using System.Collections;
@@ -9,7 +10,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Microsoft.Collections.Extensions;
 
 namespace Raffinert.FuzzySharp.Utils;
 
@@ -251,10 +251,10 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
             if (key.Equals(entries[i].key))
                 return ref entries[i].value;
 
-            //if (collisionCount == entries.Length)
-            //    ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
+            if (collisionCount == entries.Length)
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
 
-            //collisionCount++;
+            collisionCount++;
         }
 
         return ref AddKey(key, hash);

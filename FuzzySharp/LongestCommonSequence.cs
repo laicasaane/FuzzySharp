@@ -1,4 +1,4 @@
-using Raffinert.FuzzySharp.Edits;
+﻿using Raffinert.FuzzySharp.Edits;
 using Raffinert.FuzzySharp.Utils;
 using System;
 using System.Collections.Generic;
@@ -36,9 +36,9 @@ public static class LongestCommonSequence
         int maximum = Math.Max(s1.Length, s2.Length);
         int sim = Similarity(s1, s2);
         int dist = maximum - sim;
-        
-        var result = scoreCutoff == null || dist <= scoreCutoff.Value 
-            ? dist 
+
+        var result = scoreCutoff == null || dist <= scoreCutoff.Value
+            ? dist
             : scoreCutoff.Value + 1;
 
         return result;
@@ -222,11 +222,11 @@ public static class LongestCommonSequence
 
         int maximum = Math.Max(s1.Length, s2.Length);
         double normSim = Distance(s1, s2) / (double)maximum;
-        
-        var result = !scoreCutoff.HasValue || normSim <= scoreCutoff.Value 
-            ? normSim 
+
+        var result = !scoreCutoff.HasValue || normSim <= scoreCutoff.Value
+            ? normSim
             : 1.0;
-        
+
         return result;
     }
 
@@ -258,9 +258,9 @@ public static class LongestCommonSequence
         }
 
         double normSim = 1.0 - NormalizedDistance(s1, s2);
-        
-        var result = !scoreCutoff.HasValue || normSim >= scoreCutoff.Value 
-            ? normSim 
+
+        var result = !scoreCutoff.HasValue || normSim >= scoreCutoff.Value
+            ? normSim
             : 0.0;
 
         return result;
@@ -305,14 +305,14 @@ public static class LongestCommonSequence
             processor(ref s2);
         }
 
-        var sim = s1.Length > 64 
-            ? SimilarityMultipleULongs(s1, s2) 
+        var sim = s1.Length > 64
+            ? SimilarityMultipleULongs(s1, s2)
             : SimilaritySingleULong(s1, s2);
-        
-        var result = scoreCutoff == null || sim >= scoreCutoff.Value 
-            ? sim 
+
+        var result = scoreCutoff == null || sim >= scoreCutoff.Value
+            ? sim
             : 0;
-        
+
         return result;
     }
 
@@ -350,11 +350,8 @@ public static class LongestCommonSequence
         // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
         foreach (T ch in s2)
         {
-            if(!block.TryGetMask(ch, out var M))
-            {
-                M = new ulong[segCount];
-            }
-            
+            var M = block.GetOrZero(ch);
+
             // u = S & M
             var u = new ulong[segCount];
             for (int i = 0; i < segCount; i++)
@@ -444,30 +441,20 @@ public static class LongestCommonSequence
         }
 
         // build blockTable: element → bit-mask array
-        var blockTable = new Dictionary<T, ulong[]>();
+        using var blockTable = new CharMaskBuffer<T>(64, blocks);
         for (int i = 0; i < m; i++)
         {
-            var key = s1[i];
-            int b = i / 64, off = i % 64;
-            if (!blockTable.TryGetValue(key, out var arr))
-            {
-                arr = new ulong[blocks];
-                blockTable[key] = arr;
-            }
-            arr[b] |= 1UL << off;
+            blockTable.AddBit(s1[i], i);
         }
-        var zeroMask = new ulong[blocks];
 
         var matrix = new List<ulong[]>(s2.Length);
-        var U = new ulong[blocks];
         var Sum = new ulong[blocks];
         var Diff = new ulong[blocks];
 
         foreach (var y in s2)
         {
             // load mask for y
-            if (!blockTable.TryGetValue(y, out U))
-                U = zeroMask;
+            var U = blockTable.GetOrZero(y);
 
             // big-integer add: Sum = S + U
             ulong carry = 0;
@@ -518,19 +505,16 @@ public static class LongestCommonSequence
         ulong S = m == 64 ? ulong.MaxValue : (1UL << m) - 1UL;
 
         // build bit-mask
-        var block = new Dictionary<T, ulong>();
-        ulong bit = 1;
-        foreach (var x in s1)
+        using var block = new CharMaskBuffer<T>(64, 1);
+        for (int i = 0; i < m; i++)
         {
-            if (block.ContainsKey(x)) block[x] |= bit;
-            else block[x] = bit;
-            bit <<= 1;
+            block.AddBit(s1[i], i);
         }
 
         var matrix = new List<ulong[]>(s2.Length);
         foreach (var y in s2)
         {
-            block.TryGetValue(y, out var M);
+            var M = block.GetOrZero(y)[0];
             // u = S & M
             ulong u = S & M;
             // S = (S + u) | (S - u)
@@ -554,18 +538,11 @@ public static class LongestCommonSequence
         int segCount = (len1 + 63) / 64;
 
         // --- 1) build per-symbol bit-masks (one ulong[] per distinct T) ---
-        var block = new Dictionary<T, ulong[]>(EqualityComparer<T>.Default);
+
+        using var block = new CharMaskBuffer<T>(64, segCount);
         for (int i = 0; i < len1; i++)
         {
-            T key = s1[i];
-            int seg = i / 64;
-            int bit = i % 64;
-            if (!block.TryGetValue(key, out var arr))
-            {
-                arr = new ulong[segCount];
-                block[key] = arr;
-            }
-            arr[seg] |= 1UL << bit;
+            block.AddBit(s1[i], i);
         }
 
         // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
@@ -582,9 +559,7 @@ public static class LongestCommonSequence
         // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
         foreach (T ch in s2)
         {
-            block.TryGetValue(ch, out var M);
-            // if no occurrences in s1, M will be all-zeros
-            if (M == null) M = new ulong[segCount];
+            var M = block.GetOrZero(ch);
 
             // u = S & M
             var u = new ulong[segCount];
@@ -635,22 +610,17 @@ public static class LongestCommonSequence
 
         // Build bit-mask for each character in s1
         ulong mask = len1 == 64 ? ulong.MaxValue : (1UL << len1) - 1UL;
-        var block = new Dictionary<T, ulong>();
-        ulong x = 1UL;
-        foreach (T ch in s1)
+        using var block = new CharMaskBuffer<T>(64, 1);
+        for (int i = 0; i < len1; i++)
         {
-            if (block.ContainsKey(ch))
-                block[ch] |= x;
-            else
-                block[ch] = x;
-            x <<= 1;
+            block.AddBit(s1[i], i);
         }
 
         // Bit-parallel LCS loop
         ulong S = mask;
         foreach (T ch2 in s2)
         {
-            block.TryGetValue(ch2, out ulong Matches);
+            ulong Matches = block.GetOrZero(ch2)[0];
             ulong u = S & Matches;
             unchecked
             {

@@ -46,10 +46,11 @@ public static class Levenshtein
         int insertCost = 1, int deleteCost = 1, int replaceCost = 1,
         int? scoreCutoff = null) where T : IEquatable<T>
     {
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
+
         // unit-weight fast path
         if (insertCost == 1 && deleteCost == 1 && replaceCost == 1)
         {
-
             return scoreCutoff.HasValue
                 ? FastDistance(source, target, scoreCutoff.Value)
                 : FastDistance(source, target);
@@ -59,8 +60,6 @@ public static class Levenshtein
         {
             return IndelLcs.Distance(source, target, scoreCutoff: scoreCutoff);
         }
-
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
         // otherwise generic
         return GenericDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
@@ -77,12 +76,12 @@ public static class Levenshtein
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
     {
-        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
+        //SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
 
-        if (source.Length <= 64)
-        {
-            return BitParallelDistanceSingleULong(source, target, scoreCutoff);
-        }
+        //if (source.Length <= 64)
+        //{
+        //    return BitParallelDistanceSingleULong(source, target, scoreCutoff);
+        //}
 
         SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
 
@@ -359,21 +358,25 @@ public static class Levenshtein
         ulong topBitMask = 1UL << topBitPos;
 
         // Build the “block” table: for each character, which bit(s) in each block it sets
-        var blockTable = new Dictionary<T, ulong[]>();
-        for (int j = 0; j < m; j++)
+        // build blockTable: element → bit-mask array
+        using var blockTable = new CharMaskBuffer<T>(64, blocks);
+        for (int i = 0; i < m; i++)
         {
-            T c = pattern[j];
-            int blk = j / 64, offset = j % 64;
-            if (!blockTable.TryGetValue(c, out var arr))
-            {
-                arr = new ulong[blocks];
-                blockTable[c] = arr;
-            }
-            arr[blk] |= 1UL << offset;
+            blockTable.AddBit(pattern[i], i);
         }
 
-        // A reusable zero‐mask for characters not in pattern
-        var zeroMask = new ulong[blocks];
+        //var blockTable = new Dictionary<T, ulong[]>();
+        //for (int j = 0; j < m; j++)
+        //{
+        //    T c = pattern[j];
+        //    int blk = j / 64, offset = j % 64;
+        //    if (!blockTable.TryGetValue(c, out var arr))
+        //    {
+        //        arr = new ulong[blocks];
+        //        blockTable[c] = arr;
+        //    }
+        //    arr[blk] |= 1UL << offset;
+        //}
 
         int currDist = m;
         var matrixVP = new List<ulong[]>();
@@ -383,7 +386,6 @@ public static class Levenshtein
         var D0 = new ulong[blocks];
         var HP = new ulong[blocks];
         var HN = new ulong[blocks];
-        var X = new ulong[blocks];
         var sum = new ulong[blocks];
         var HPs = new ulong[blocks];
         var HNs = new ulong[blocks];
@@ -392,8 +394,7 @@ public static class Levenshtein
         foreach (T c in text)
         {
             // 1) Load the pattern‐mask for c, or zeros if not present
-            blockTable.TryGetValue(c, out X);
-            if (X == null) X = zeroMask;
+            var X = blockTable.GetOrZero(c);
 
             // 2) Compute D0 = (((X & VP) + VP) ^ VP) | X | VN
             //    -> Must do a big‐integer add and carry across blocks
@@ -475,15 +476,20 @@ public static class Levenshtein
         ulong mask = 1UL << (s1.Length - 1);
 
         // Build the “block” table: for each character in s1, which bit(s) it sets
-        var block = new Dictionary<T, ulong>();
-        ulong bit = 1UL;
-        foreach (T c in s1)
+        //var block = new Dictionary<T, ulong>();
+        //ulong bit = 1UL;
+        //foreach (T c in s1)
+        //{
+        //    if (block.ContainsKey(c))
+        //        block[c] |= bit;
+        //    else
+        //        block[c] = bit;
+        //    bit <<= 1;
+        //}
+        using var blockTable = new CharMaskBuffer<T>(64, 1);
+        for (int i = 0; i < s1.Length; i++)
         {
-            if (block.ContainsKey(c))
-                block[c] |= bit;
-            else
-                block[c] = bit;
-            bit <<= 1;
+            blockTable.AddBit(s1[i], i);
         }
 
         var matrixVP = new List<ulong[]>();
@@ -491,7 +497,7 @@ public static class Levenshtein
 
         foreach (T c in s2)
         {
-            block.TryGetValue(c, out ulong PMj);
+            var PMj = blockTable.GetOrZero(c)[0];
 
             // Step 1: D0 = (((PMj & VP) + VP) ^ VP) | PMj | VN
             // Use unchecked so addition wraps modulo 2^64
@@ -699,7 +705,7 @@ public static class Levenshtein
     }
 
     // Threshold (in number of ulongs) under which we use stackalloc.
-    private const int STACKALLOC_THRESHOLD_ULONGS = 1024*8 ;
+    private const int STACKALLOC_THRESHOLD_ULONGS = 1024 * 8;
 
     /// <summary>
     /// Computes the Levenshtein distance (Myers’s bit‐parallel over >64 bits), with an optional cutoff.
@@ -737,14 +743,13 @@ public static class Levenshtein
         // (We use a simple new here; it will be garbage‐collected.)
         //var zeroMask = new ulong[blocks]; // all elements default to 0
 
-        int totalScratch = 7 * blocks;
+        int totalScratch = 6 * blocks;
         int result;
-        
+
         if (totalScratch <= STACKALLOC_THRESHOLD_ULONGS)
         {
             Span<ulong> scratch = stackalloc ulong[totalScratch];
-            result = MyersComputeWithDictionary(target, scoreCutoff,
-                m, blocks, charMask, scratch
+            result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratch
             );
         }
         else
@@ -753,8 +758,8 @@ public static class Levenshtein
             //ulong[] scratchArray = new ulong[totalScratch];
             ulong[] scratchArray = pool.Rent(totalScratch);
             try
-            { result = MyersComputeWithDictionary(target, scoreCutoff,
-                    m, blocks, charMask, scratchArray
+            {
+                result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratchArray
                 );
             }
             finally
@@ -762,7 +767,7 @@ public static class Levenshtein
                 pool.Return(scratchArray);
             }
         }
-        
+
 
         return result;
     }
@@ -803,8 +808,6 @@ public static class Levenshtein
         Span<ulong> D0 = scratch.Slice(3 * blocks, blocks);
         Span<ulong> HP = scratch.Slice(4 * blocks, blocks);
         Span<ulong> HN = scratch.Slice(5 * blocks, blocks);
-        Span<ulong> zeroMask = scratch.Slice(6 * blocks, blocks);
-        zeroMask.Clear(); // all elements default to 0
 
         // Initialize VP (low m bits = 1) and VN = 0
         for (int b = 0; b < blocks; b++)
@@ -828,7 +831,7 @@ public static class Levenshtein
         foreach (var c2 in target)
         {
             // Look up the precomputed bitmask array, or use zeroMask if not found
-            var PMitem = charMask.GetOrDefault(c2, zeroMask);
+            var PMitem = charMask.GetOrZero(c2);
 
             // “D0‐loop” with carry across blocks
             ulong carry = 0UL;
@@ -1165,15 +1168,16 @@ public static class Levenshtein
         var highestBit = 1UL << (m - 1);
         var dist = m;
 
+        using var charMask = new CharMaskBuffer<T>(64, 1);
+
+        for (var i = 0; i < m; i++)
+        {
+            charMask.AddBit(source[i], i);
+        }
+
         foreach (var c2 in target)
         {
-            // build mask for c2: bits set where s1[i] == c2
-            ulong PM = 0;
-            for (var i = 0; i < m; i++)
-            {
-                if (EqualityComparer<T>.Default.Equals(source[i], c2))
-                    PM |= 1UL << i;
-            }
+            ulong PM = charMask.GetOrZero(c2)[0];
 
             // Myers bit-parallel update
             var X = PM | VN;
@@ -1216,15 +1220,16 @@ public static class Levenshtein
         var highestBit = 1UL << (m - 1);
         var dist = m;
 
+        using var charMask = new CharMaskBuffer<T>(64, 1);
+
+        for (var i = 0; i < m; i++)
+        {
+            charMask.AddBit(source[i], i);
+        }
+
         foreach (var c2 in target)
         {
-            // build mask for c2: bits set where s1[i] == c2
-            ulong PM = 0;
-            for (var i = 0; i < m; i++)
-            {
-                if (EqualityComparer<T>.Default.Equals(source[i], c2))
-                    PM |= 1UL << i;
-            }
+            ulong PM = charMask.GetOrZero(c2)[0];
 
             // Myers bit-parallel update
             var X = PM | VN;
