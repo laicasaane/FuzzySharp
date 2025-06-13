@@ -1,9 +1,9 @@
 ﻿using BenchmarkDotNet.Attributes;
 using Raffinert.FuzzySharp.Benchmarks.Utils;
-using FuzzLevenshtein = Raffinert.FuzzySharp.Levenshtein;
-using QuickLevenshtein = Quickenshtein.Levenshtein;
 using FastLevenshtein = Fastenshtein.Levenshtein;
+using FuzzLevenshtein = Raffinert.FuzzySharp.Levenshtein;
 using FuzzLevenshteinClassic = FuzzySharp.Levenshtein;
+using QuickLevenshtein = Quickenshtein.Levenshtein;
 
 namespace Raffinert.FuzzySharp.Benchmarks.LevenshteinDistance;
 
@@ -72,9 +72,10 @@ public class LevenshteinLarge
     {
         for (var i = 0; i < _words.Length; i++)
         {
+            using var lev = new FuzzLevenshtein(_words[i]);
             for (int j = 0; j < _words.Length; j++)
             {
-                FuzzLevenshtein.Distance(_words[i], _words[j]);
+                lev.DistanceFrom(_words[j]);
             }
         }
     }

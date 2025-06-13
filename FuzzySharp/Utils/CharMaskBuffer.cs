@@ -83,9 +83,6 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
         return TryGetMask(key, out var mask) ? mask : fallback;
     }
 
-    public int Capacity => _capacity;
-    public int Count => _next;
-
     public void Dispose()
     {
         _pool.Return(_buffer);

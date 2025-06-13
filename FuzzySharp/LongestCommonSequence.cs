@@ -515,9 +515,9 @@ public static class LongestCommonSequence
         foreach (var y in s2)
         {
             var M = block.GetOrZero(y)[0];
-            // u = S & M
+
             ulong u = S & M;
-            // S = (S + u) | (S - u)
+
             unchecked { S = (S + u) | (S - u); }
             matrix.Add([S]);
         }

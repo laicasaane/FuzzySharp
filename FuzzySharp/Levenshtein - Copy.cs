@@ -11,8 +11,33 @@ namespace Raffinert.FuzzySharp;
 /// Provides static methods for computing the Levenshtein distance and similarity between sequences.
 /// Implements bit-parallel and dynamic programming algorithms inspired by RapidFuzz's Levenshtein implementation.
 /// </summary>
-public static class Levenshtein
+public class Levenshtein : IDisposable
 {
+    private readonly string _source;
+    private readonly CharMaskBuffer<char> _charMask;
+
+    public Levenshtein(string source)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+
+        var blocks = (_source.Length + 63) >> 6;
+
+        _charMask = new CharMaskBuffer<char>(64, blocks);
+        for (var i = 0; i < _source.Length; i++)
+        {
+            _charMask.AddBit(source[i], i);
+        }
+    }
+
+    public int DistanceFrom(string value)
+    {
+        return BitParallelDistance(_source.AsSpan(), value.AsSpan(), _charMask);
+    }
+    public void Dispose()
+    {
+        _charMask?.Dispose();
+    }
+
     /// <summary>
     /// Computes the Levenshtein distance between two strings with custom operation costs and optional cutoff.
     /// </summary>
@@ -51,73 +76,51 @@ public static class Levenshtein
         // unit-weight fast path
         if (insertCost == 1 && deleteCost == 1 && replaceCost == 1)
         {
+            var blocks = (source.Length + 63) >> 6;
+
+            using var charMask = new CharMaskBuffer<T>(64, blocks);
+
+            for (var i = 0; i < source.Length; i++)
+            {
+                charMask.AddBit(source[i], i);
+            }
+
             return scoreCutoff.HasValue
-                ? FastDistance(source, target, scoreCutoff.Value)
-                : FastDistance(source, target);
+                ? BitParallelDistance(source, target, scoreCutoff.Value, charMask)
+                : BitParallelDistance(source, target, charMask);
         }
 
         if (insertCost == 1 && deleteCost == 1 && replaceCost == 2)
         {
-            return IndelLcs.Distance(source, target, scoreCutoff: scoreCutoff);
+            return IndelLcs.DistanceImpl(source, target, scoreCutoff: scoreCutoff);
         }
 
         // otherwise generic
         return GenericDistance(source, target, insertCost, deleteCost, replaceCost, scoreCutoff);
     }
 
-    /// <summary>
-    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm with a score cutoff.
-    /// </summary>
-    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="target">Target sequence.</param>
-    /// <param name="scoreCutoff">Maximum allowed distance.</param>
-    /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
+    private static int BitParallelDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
-        //SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
-
-        //if (source.Length <= 64)
-        //{
-        //    return BitParallelDistanceSingleULong(source, target, scoreCutoff);
-        //}
-
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
-
         if (source.Length <= 64)
         {
-            return BitParallelDistanceSingleULong(source, target, scoreCutoff);
+            return BitParallelDistanceSingleULong(source, target, scoreCutoff, charMask);
         }
 
-        return BitParallelDistanceMultipleULongs(source, target, scoreCutoff);
+        return BitParallelDistanceMultipleULongs(source, target, scoreCutoff, charMask);
     }
 
-    /// <summary>
-    /// Computes the Levenshtein distance between two sequences using the Myers bit-parallel algorithm (unit weights, zero-alloc).
-    /// </summary>
-    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="target">Target sequence.</param>
-    /// <returns>The Levenshtein distance.</returns>
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int FastDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    private static int BitParallelDistance<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
-        SequenceUtils.SwapIfSourceIsLonger(ref source, ref target);
-
         if (source.Length <= 64)
         {
-            return BitParallelDistanceSingleULong(source, target);
+            return BitParallelDistanceSingleULong(source, target, charMask);
         }
 
-        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref source, ref target);
-
-        if (source.Length <= 64)
-        {
-            return BitParallelDistanceSingleULong(source, target);
-        }
-
-        return BitParallelDistanceMultipleULongs(source, target);
+        return BitParallelDistanceMultipleULongs(source, target, null, charMask);
     }
 
     /// <summary>
@@ -203,11 +206,11 @@ public static class Levenshtein
         var (dist, VPblocks, VNblocks) = Matrix(s1, s2);
 
         // 5) Initialize backtracking
-        int originalDist = dist;
+        var originalDist = dist;
         var opsArray = new EditOp[originalDist];
-        int col = s1.Length;
-        int row = s2.Length;
-        int nextIndex = originalDist; // we’ll decrement before placing
+        var col = s1.Length;
+        var row = s2.Length;
+        var nextIndex = originalDist; // we’ll decrement before placing
 
         // 6) If no edits, we’re done
         if (originalDist == 0)
@@ -217,10 +220,10 @@ public static class Levenshtein
         while (row > 0 && col > 0)
         {
             // determine which block & bit offset holds the (col-1) bit
-            int bitPos = col - 1;
-            int blk = bitPos / 64;
-            int off = bitPos % 64;
-            ulong bit = 1UL << off;
+            var bitPos = col - 1;
+            var blk = bitPos / 64;
+            var off = bitPos % 64;
+            var bit = 1UL << off;
 
             // deletion?
             if ((VPblocks[row - 1][blk] & bit) != 0)
@@ -308,15 +311,15 @@ public static class Levenshtein
     public static int LevenshteinMaximum(int len1, int len2, int insertCost, int deleteCost, int replaceCost)
     {
         // Cost of deleting all of s1 then inserting all of s2
-        int totalDelIns = len1 * deleteCost + len2 * insertCost;
+        var totalDelIns = len1 * deleteCost + len2 * insertCost;
 
         // Cost of replacing common prefix and handling extra characters
-        int common = len1 < len2 ? len1 : len2;
-        int extraCost = len1 >= len2
+        var common = len1 < len2 ? len1 : len2;
+        var extraCost = len1 >= len2
             ? len1 - len2 * deleteCost
             : len2 - len1 * insertCost;
 
-        int replaceAndDiff = common * replaceCost + extraCost;
+        var replaceAndDiff = common * replaceCost + extraCost;
 
         // Return the smaller of the two worst-case scenarios
         return totalDelIns < replaceAndDiff ? totalDelIns : replaceAndDiff;
@@ -331,17 +334,17 @@ public static class Levenshtein
     /// <returns>Tuple of (distance, VP matrix, VN matrix).</returns>
     public static (int Distance, List<ulong[]> VP, List<ulong[]> VN) MatrixMultipleULongs<T>(ReadOnlySpan<T> pattern, ReadOnlySpan<T> text) where T : IEquatable<T>
     {
-        int m = pattern.Length;
+        var m = pattern.Length;
         if (m == 0)
             return (text.Length, new List<ulong[]>(), new List<ulong[]>());
 
         // Number of 64‐bit blocks needed to cover the pattern
-        int blocks = (m + 63) / 64;
+        var blocks = (m + 63) / 64;
 
         // Initial VP = all 1s in those m bits, VN = 0
         var VP = new ulong[blocks];
         var VN = new ulong[blocks];
-        for (int i = 0; i < blocks; i++)
+        for (var i = 0; i < blocks; i++)
         {
             // For all but the last block, fill with 0xFFFFFFFFFFFFFFFF
             // For the last block, only the low (m % 64) bits are 1
@@ -353,32 +356,18 @@ public static class Levenshtein
         }
 
         // Mask to extract the highest‐order bit of the full m‐bit vector
-        int lastBlk = blocks - 1;
-        int topBitPos = (m - 1) % 64;
-        ulong topBitMask = 1UL << topBitPos;
+        var lastBlk = blocks - 1;
+        var topBitPos = (m - 1) % 64;
+        var topBitMask = 1UL << topBitPos;
 
         // Build the “block” table: for each character, which bit(s) in each block it sets
-        // build blockTable: element → bit-mask array
         using var blockTable = new CharMaskBuffer<T>(64, blocks);
-        for (int i = 0; i < m; i++)
+        for (var i = 0; i < m; i++)
         {
             blockTable.AddBit(pattern[i], i);
         }
 
-        //var blockTable = new Dictionary<T, ulong[]>();
-        //for (int j = 0; j < m; j++)
-        //{
-        //    T c = pattern[j];
-        //    int blk = j / 64, offset = j % 64;
-        //    if (!blockTable.TryGetValue(c, out var arr))
-        //    {
-        //        arr = new ulong[blocks];
-        //        blockTable[c] = arr;
-        //    }
-        //    arr[blk] |= 1UL << offset;
-        //}
-
-        int currDist = m;
+        var currDist = m;
         var matrixVP = new List<ulong[]>();
         var matrixVN = new List<ulong[]>();
 
@@ -391,7 +380,7 @@ public static class Levenshtein
         var HNs = new ulong[blocks];
 
         // Process each character of the text
-        foreach (T c in text)
+        foreach (var c in text)
         {
             // 1) Load the pattern‐mask for c, or zeros if not present
             var X = blockTable.GetOrZero(c);
@@ -399,15 +388,15 @@ public static class Levenshtein
             // 2) Compute D0 = (((X & VP) + VP) ^ VP) | X | VN
             //    -> Must do a big‐integer add and carry across blocks
             ulong carry = 0;
-            for (int b = 0; b < blocks; b++)
+            for (var b = 0; b < blocks; b++)
             {
-                ulong Pv = VP[b];
-                ulong XandVP = X[b] & Pv;
+                var Pv = VP[b];
+                var XandVP = X[b] & Pv;
                 // big‐integer add: XandVP + Pv + carry
-                ulong t = unchecked(XandVP + Pv);
-                ulong c1 = t < XandVP ? 1UL : 0UL;          // carry from first add
-                ulong t2 = unchecked(t + carry);
-                ulong c2 = t2 < carry ? 1UL : 0UL;           // carry from second add
+                var t = unchecked(XandVP + Pv);
+                var c1 = t < XandVP ? 1UL : 0UL;          // carry from first add
+                var t2 = unchecked(t + carry);
+                var c2 = t2 < carry ? 1UL : 0UL;           // carry from second add
                 carry = c1 | c2;
 
                 sum[b] = t2;
@@ -415,7 +404,7 @@ public static class Levenshtein
             }
 
             // 3) HP = VN | ~(D0 | VP),   HN = D0 & VP
-            for (int b = 0; b < blocks; b++)
+            for (var b = 0; b < blocks; b++)
             {
                 HP[b] = VN[b] | ~(D0[b] | VP[b]);
                 HN[b] = D0[b] & VP[b];
@@ -428,11 +417,11 @@ public static class Levenshtein
             // 5) Shift HP and HN left by one over the entire multi‐block vector
             //    and set the low bit of HP[0] to 1
             ulong carryHP = 1, carryHN = 0;
-            for (int b = 0; b < blocks; b++)
+            for (var b = 0; b < blocks; b++)
             {
                 ulong hpb = HP[b], hnb = HN[b];
-                ulong newCarryHP = hpb >> 63;
-                ulong newCarryHN = hnb >> 63;
+                var newCarryHP = hpb >> 63;
+                var newCarryHN = hnb >> 63;
                 HPs[b] = (hpb << 1) | carryHP;
                 HNs[b] = (hnb << 1) | carryHN;
                 carryHP = newCarryHP;
@@ -440,7 +429,7 @@ public static class Levenshtein
             }
 
             // 6) Recompute VP, VN
-            for (int b = 0; b < blocks; b++)
+            for (var b = 0; b < blocks; b++)
             {
                 VP[b] = HNs[b] | ~(D0[b] | HPs[b]);
                 VN[b] = HPs[b] & D0[b];
@@ -470,24 +459,14 @@ public static class Levenshtein
             throw new ArgumentException("Pattern too long for 64-bit bit-parallel algorithm.", nameof(s1));
 
         // Initial bitmasks
-        ulong VP = (1UL << s1.Length) - 1;
+        var VP = (1UL << s1.Length) - 1;
         ulong VN = 0;
-        int currDist = s1.Length;
-        ulong mask = 1UL << (s1.Length - 1);
+        var currDist = s1.Length;
+        var mask = 1UL << (s1.Length - 1);
 
         // Build the “block” table: for each character in s1, which bit(s) it sets
-        //var block = new Dictionary<T, ulong>();
-        //ulong bit = 1UL;
-        //foreach (T c in s1)
-        //{
-        //    if (block.ContainsKey(c))
-        //        block[c] |= bit;
-        //    else
-        //        block[c] = bit;
-        //    bit <<= 1;
-        //}
         using var blockTable = new CharMaskBuffer<T>(64, 1);
-        for (int i = 0; i < s1.Length; i++)
+        for (var i = 0; i < s1.Length; i++)
         {
             blockTable.AddBit(s1[i], i);
         }
@@ -495,18 +474,18 @@ public static class Levenshtein
         var matrixVP = new List<ulong[]>();
         var matrixVN = new List<ulong[]>();
 
-        foreach (T c in s2)
+        foreach (var c in s2)
         {
             var PMj = blockTable.GetOrZero(c)[0];
 
             // Step 1: D0 = (((PMj & VP) + VP) ^ VP) | PMj | VN
             // Use unchecked so addition wraps modulo 2^64
-            ulong X = PMj;
-            ulong D0 = unchecked(((X & VP) + VP) ^ VP) | X | VN;
+            var X = PMj;
+            var D0 = unchecked(((X & VP) + VP) ^ VP) | X | VN;
 
             // Step 2: HP = VN | ~(D0 | VP);  HN = D0 & VP
-            ulong HP = VN | ~(D0 | VP);
-            ulong HN = D0 & VP;
+            var HP = VN | ~(D0 | VP);
+            var HN = D0 & VP;
 
             // Step 3: adjust distance by looking at the high bit
             if ((HP & mask) != 0) currDist++;
@@ -705,83 +684,78 @@ public static class Levenshtein
     }
 
     // Threshold (in number of ulongs) under which we use stackalloc.
-    private const int STACKALLOC_THRESHOLD_ULONGS = 1024 * 8;
+    //private const int STACKALLOC_THRESHOLD_ULONGS = 1024 * 8;
 
     /// <summary>
     /// Computes the Levenshtein distance (Myers’s bit‐parallel over >64 bits), with an optional cutoff.
     /// Uses a dictionary to store per‐character bitmasks rented from ArrayPool, and uses stackalloc if
     /// 6*blocks ≤ STACKALLOC_THRESHOLD_ULONGS; otherwise allocates a new ulong[] on the heap for the six lanes.
     /// </summary>
-    public static int BitParallelDistanceMultipleULongs<T>(
+    private static int BitParallelDistanceMultipleULongs<T>(
         ReadOnlySpan<T> source,
         ReadOnlySpan<T> target,
-        int? scoreCutoff
+        int? scoreCutoff,
+        CharMaskBuffer<T> charMask
     ) where T : IEquatable<T>
     {
-        int m = source.Length;
+        var m = source.Length;
         if (m == 0)
         {
-            int d = target.Length;
-            return (scoreCutoff.HasValue && d > scoreCutoff.Value)
+            var d = target.Length;
+            return d > scoreCutoff
                 ? scoreCutoff.Value + 1
                 : d;
         }
 
         // Number of 64‐bit blocks needed to cover pattern length m
-        int blocks = (m + 63) >> 6;
+        var blocks = (m + 63) >> 6;
 
         // Build the dictionary of per‐character bitmasks (rented from ArrayPool)
-        var pool = ArrayPool<ulong>.Shared;
+        //var pool = ArrayPool<ulong>.Shared;
         //var charMask = new Dictionary<T, ulong[]>(capacity: m);
-        using var charMask = new CharMaskBuffer<T>(64, blocks, pool);
-        for (int i = 0; i < m; i++)
-        {
-            charMask.AddBit(source[i], i);
-        }
 
         // A zero‐mask to use for characters not present in 'source'
         // (We use a simple new here; it will be garbage‐collected.)
         //var zeroMask = new ulong[blocks]; // all elements default to 0
 
-        int totalScratch = 6 * blocks;
+        var totalScratch = 6 * blocks;
         int result;
 
-        if (totalScratch <= STACKALLOC_THRESHOLD_ULONGS)
+        //if (totalScratch <= STACKALLOC_THRESHOLD_ULONGS)
+        //{
+        //    Span<ulong> scratch = stackalloc ulong[totalScratch];
+        //    result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratch
+        //    );
+        //}
+        //else
+        //{
+        //    // Allocate a single ulong[] on the heap for the six lanes
+        //    //ulong[] scratchArray = new ulong[totalScratch];
+        //    ulong[] scratchArray = pool.Rent(totalScratch);
+        //    try
+        //    {
+        //        result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratchArray);
+        //    }
+        //    finally
+        //    {
+        //        pool.Return(scratchArray);
+        //    }
+        //}
+
+        var scratchArray = ArrayPool<ulong>.Shared.Rent(totalScratch);
+        try
         {
-            Span<ulong> scratch = stackalloc ulong[totalScratch];
-            result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratch
-            );
+            result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratchArray);
         }
-        else
+        finally
         {
-            // Allocate a single ulong[] on the heap for the six lanes
-            //ulong[] scratchArray = new ulong[totalScratch];
-            ulong[] scratchArray = pool.Rent(totalScratch);
-            try
-            {
-                result = MyersComputeWithDictionary(target, scoreCutoff, m, blocks, charMask, scratchArray
-                );
-            }
-            finally
-            {
-                pool.Return(scratchArray);
-            }
+            ArrayPool<ulong>.Shared.Return(scratchArray);
         }
 
 
         return result;
     }
 
-    /// <summary>
-    /// Computes the Levenshtein distance (Myers’s bit‐parallel over >64 bits) without cutoff.
-    /// </summary>
-    public static int BitParallelDistanceMultipleULongs<T>(
-        ReadOnlySpan<T> source,
-        ReadOnlySpan<T> target
-    ) where T : IEquatable<T>
-    {
-        return BitParallelDistanceMultipleULongs(source, target, scoreCutoff: null);
-    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Shared implementation that uses the precomputed dictionary of masks.
@@ -802,15 +776,15 @@ public static class Levenshtein
     ) where T : IEquatable<T>
     {
         // Partition scratch into six spans of length = blocks
-        Span<ulong> VP = scratch.Slice(0 * blocks, blocks);
-        Span<ulong> VN = scratch.Slice(1 * blocks, blocks);
-        Span<ulong> X = scratch.Slice(2 * blocks, blocks);
-        Span<ulong> D0 = scratch.Slice(3 * blocks, blocks);
-        Span<ulong> HP = scratch.Slice(4 * blocks, blocks);
-        Span<ulong> HN = scratch.Slice(5 * blocks, blocks);
+        var VP = scratch.Slice(0 * blocks, blocks);
+        var VN = scratch.Slice(1 * blocks, blocks);
+        var X = scratch.Slice(2 * blocks, blocks);
+        var D0 = scratch.Slice(3 * blocks, blocks);
+        var HP = scratch.Slice(4 * blocks, blocks);
+        var HN = scratch.Slice(5 * blocks, blocks);
 
         // Initialize VP (low m bits = 1) and VN = 0
-        for (int b = 0; b < blocks; b++)
+        for (var b = 0; b < blocks; b++)
         {
             if (b < blocks - 1)
             {
@@ -818,15 +792,15 @@ public static class Levenshtein
             }
             else
             {
-                int rem = m - ((blocks - 1) << 6);
+                var rem = m - ((blocks - 1) << 6);
                 VP[b] = (rem == 64) ? ulong.MaxValue : ((1UL << rem) - 1);
             }
             VN[b] = 0UL;
         }
 
-        int last = blocks - 1;
-        ulong highestBitMask = 1UL << ((m - 1) & 63);
-        int dist = m;
+        var last = blocks - 1;
+        var highestBitMask = 1UL << ((m - 1) & 63);
+        var dist = m;
 
         foreach (var c2 in target)
         {
@@ -834,26 +808,26 @@ public static class Levenshtein
             var PMitem = charMask.GetOrZero(c2);
 
             // “D0‐loop” with carry across blocks
-            ulong carry = 0UL;
-            for (int b = 0; b < blocks; b++)
+            var carry = 0UL;
+            for (var b = 0; b < blocks; b++)
             {
-                ulong pm = PMitem[b];
-                ulong vp = VP[b];
-                ulong vn = VN[b];
-                ulong x = pm | vn;
+                var pm = PMitem[b];
+                var vp = VP[b];
+                var vn = VN[b];
+                var x = pm | vn;
                 X[b] = x;
-                ulong tmp = x & vp;
+                var tmp = x & vp;
 
                 // tmp + vp
-                ulong sum1 = tmp + vp;
-                ulong c1 = (sum1 < tmp) ? 1UL : 0UL;
+                var sum1 = tmp + vp;
+                var c1 = (sum1 < tmp) ? 1UL : 0UL;
                 // sum1 + carry
-                ulong sum = sum1 + carry;
-                ulong c2o = (sum < sum1) ? 1UL : 0UL;
+                var sum = sum1 + carry;
+                var c2o = (sum < sum1) ? 1UL : 0UL;
                 carry = c1 | c2o;
 
                 // D0 = (sum ^ vp) | x
-                ulong d0 = (sum ^ vp) | x;
+                var d0 = (sum ^ vp) | x;
                 D0[b] = d0;
 
                 // HP = vn | ~(d0 | vp)
@@ -871,20 +845,20 @@ public static class Levenshtein
             }
 
             // Shift HP/HN left by 1 (with cross‐block carry), then compute new VP/VN
-            ulong carryHP = 1UL;
-            ulong carryHN = 0UL;
-            for (int b = 0; b < blocks; b++)
+            var carryHP = 1UL;
+            var carryHN = 0UL;
+            for (var b = 0; b < blocks; b++)
             {
-                ulong hp = HP[b];
-                ulong hn = HN[b];
+                var hp = HP[b];
+                var hn = HN[b];
 
-                ulong hpHigh = hp >> 63;
-                ulong hnHigh = hn >> 63;
+                var hpHigh = hp >> 63;
+                var hnHigh = hn >> 63;
 
                 hp = (hp << 1) | carryHP;
                 hn = (hn << 1) | carryHN;
 
-                ulong d0 = D0[b];
+                var d0 = D0[b];
                 VP[b] = hn | ~(d0 | hp);
                 VN[b] = hp & d0;
 
@@ -1149,15 +1123,7 @@ public static class Levenshtein
     //    return dist;
     //}
 
-    /// <summary>
-    /// Computes the Levenshtein distance using the Myers bit-parallel algorithm for patterns up to 64 elements, with a score cutoff.
-    /// </summary>
-    /// <typeparam name="T">Element type, must implement IEquatable&lt;T&gt;.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="target">Target sequence.</param>
-    /// <param name="scoreCutoff">Maximum allowed distance.</param>
-    /// <returns>The Levenshtein distance, or scoreCutoff+1 if above cutoff.</returns>
-    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff) where T : IEquatable<T>
+    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, int scoreCutoff, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;
@@ -1168,16 +1134,16 @@ public static class Levenshtein
         var highestBit = 1UL << (m - 1);
         var dist = m;
 
-        using var charMask = new CharMaskBuffer<T>(64, 1);
+        //using var charMask = new CharMaskBuffer<T>(64, 1);
 
-        for (var i = 0; i < m; i++)
-        {
-            charMask.AddBit(source[i], i);
-        }
+        //for (var i = 0; i < m; i++)
+        //{
+        //    charMask.AddBit(source[i], i);
+        //}
 
         foreach (var c2 in target)
         {
-            ulong PM = charMask.GetOrZero(c2)[0];
+            var PM = charMask.GetOrZero(c2)[0];
 
             // Myers bit-parallel update
             var X = PM | VN;
@@ -1209,7 +1175,7 @@ public static class Levenshtein
     /// <param name="source">Source sequence.</param>
     /// <param name="target">Target sequence.</param>
     /// <returns>The Levenshtein distance.</returns>
-    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target) where T : IEquatable<T>
+    private static int BitParallelDistanceSingleULong<T>(ReadOnlySpan<T> source, ReadOnlySpan<T> target, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
         var m = source.Length;
         if (m == 0) return target.Length;
@@ -1220,16 +1186,16 @@ public static class Levenshtein
         var highestBit = 1UL << (m - 1);
         var dist = m;
 
-        using var charMask = new CharMaskBuffer<T>(64, 1);
+        //using var charMask = new CharMaskBuffer<T>(64, 1);
 
-        for (var i = 0; i < m; i++)
-        {
-            charMask.AddBit(source[i], i);
-        }
+        //for (var i = 0; i < m; i++)
+        //{
+        //    charMask.AddBit(source[i], i);
+        //}
 
         foreach (var c2 in target)
         {
-            ulong PM = charMask.GetOrZero(c2)[0];
+            var PM = charMask.GetOrZero(c2)[0];
 
             // Myers bit-parallel update
             var X = PM | VN;

@@ -28,8 +28,6 @@ namespace Raffinert.FuzzySharp.Utils;
 [DebuggerDisplay("Count = {Count}")]
 internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
 {
-    // We want to initialize without allocating large arrays. We still keep one-element static arrays
-    // for the initial (empty) state to avoid modulo/divide-by-zero, but all real buckets/entries come from the pool.
     private static readonly Entry[] InitialEntries = new Entry[1];
     private static readonly int[] InitialBuckets = HashHelpers.SizeOneIntArray; // value 0 implies empty
 

@@ -104,12 +104,23 @@ public static class IndelLcs
             processor(ref s2);
         }
 
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref s1, ref s2);
+
+        return DistanceImpl(s1, s2, scoreCutoff);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int DistanceImpl<T>(ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
         var maximum = s1.Length + s2.Length;
         var lcsSim = LongestCommonSequence.Similarity(s1, s2);
         var dist = maximum - 2 * lcsSim;
         var result = scoreCutoff == null || dist <= scoreCutoff.Value
             ? dist
             : scoreCutoff.Value + 1;
+
         return result;
     }
 
@@ -134,6 +145,17 @@ public static class IndelLcs
             processor(ref s2);
         }
 
+        SequenceUtils.TrimCommonAffixAndSwapIfNeeded(ref s1, ref s2);
+
+        return NormalizedDistanceImpl(s1, s2, scoreCutoff);
+    }
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double NormalizedDistanceImpl<T>(ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
         var maximum = s1.Length + s2.Length;
         var dist = Distance(s1, s2);
         var normDist = maximum == 0 ? 0 : dist / (double)maximum;
@@ -164,7 +186,16 @@ public static class IndelLcs
             processor(ref s1);
             processor(ref s2);
         }
-        var normDist = NormalizedDistance(s1, s2);
+
+        return NormalizedSimilarityImpl(s1, s2, scoreCutoff);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double NormalizedSimilarityImpl<T>(ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
+        var normDist = NormalizedDistanceImpl(s1, s2);
         var normSim = 1 - normDist;
         var result = scoreCutoff == null || normSim >= scoreCutoff.Value
             ? normSim
