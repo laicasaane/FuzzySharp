@@ -42,11 +42,13 @@ public class LevenshteinTests
     }
 
     [Test, TestCaseSource(typeof(RandomWordPairs), nameof(RandomWordPairs.GetWordPairs))]
-    public void Levenshtein_ShouldNotThrow(string s1, string s2)
+    public void Levenshtein_ShouldBeEqual(string s1, string s2)
     {
         var fd = Levenshtein.Distance(s1, s2);
+        var eo = Levenshtein.GetEditOps(s1, s2);
         var qd = Quickenshtein.Levenshtein.GetDistance(s1, s2);
        
         Assert.That(fd, Is.EqualTo(qd));
+        Assert.That(eo.Length, Is.EqualTo(qd));
     }
 }
