@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using NUnit.Framework;
-using Raffinert.FuzzySharp.Benchmarks;
+﻿using NUnit.Framework;
 
 namespace Raffinert.FuzzySharp.Test;
 
@@ -37,21 +35,18 @@ public class LevenshteinTests
     {
         var wordA = new string('A', 4112);
         var wordB = new string('B', 4112);
-        int distance = Levenshtein.Distance(wordA, wordB);
-        int distance1 = Levenshtein.Distance(wordA, wordA);
-        Assert.AreEqual(4112, distance);
+        int maxDistance = Levenshtein.Distance(wordA, wordB);
+        int zeroDistance = Levenshtein.Distance(wordA, wordA);
+        Assert.AreEqual(4112, maxDistance);
+        Assert.AreEqual(0, zeroDistance);
+    }
 
-        var words = RandomWords.Create(50, 1024);
-
-        List<int> distances = [];
-        
-        for (var i = 0; i < words.Length; i++)
-        {
-            for (int j = 0; j < words.Length; j++)
-            {
-                var d = Levenshtein.Distance(words[i], words[j]);
-                distances.Add(d);
-            }
-        }
+    [Test, TestCaseSource(typeof(RandomWordPairs), nameof(RandomWordPairs.GetWordPairs))]
+    public void Levenshtein_ShouldNotThrow(string s1, string s2)
+    {
+        var fd = Levenshtein.Distance(s1, s2);
+        var qd = Quickenshtein.Levenshtein.GetDistance(s1, s2);
+       
+        Assert.That(fd, Is.EqualTo(qd));
     }
 }

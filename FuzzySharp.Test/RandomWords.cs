@@ -1,7 +1,22 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
+using NUnit.Framework;
 
-namespace Raffinert.FuzzySharp.Benchmarks;
+namespace Raffinert.FuzzySharp.Test;
+
+public static class RandomWordPairs
+{
+    public static IEnumerable<TestCaseData> GetWordPairs()
+    {
+        var words = RandomWords.Create(50, 1024);
+        for (int i = 0; i < words.Length; i++)
+        for (int j = 0; j < words.Length; j++)
+        {
+            yield return new TestCaseData(words[i], words[j]);
+        }
+    }
+}
 
 // original https://github.com/DanHarltey/Fastenshtein/blob/master/benchmarks/Fastenshtein.Benchmarking/RandomWords.cs
 public static class RandomWords
