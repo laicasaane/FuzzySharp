@@ -3,7 +3,7 @@ using System;
 
 namespace Raffinert.FuzzySharp;
 
-public partial class LongestCommonSequence : IDisposable
+public sealed partial class LongestCommonSequence : IDisposable
 {
     private readonly string _source;
     private readonly CharMaskBuffer<char> _charMask;

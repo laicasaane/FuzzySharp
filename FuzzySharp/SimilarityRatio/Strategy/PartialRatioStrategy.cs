@@ -83,10 +83,10 @@ internal static class PartialRatioStrategy
                 // swap src/dest
                 res = new ScoreAlignment(
                     res2.Score,
-                    srcStart: res2.DestStart,
-                    srcEnd: res2.DestEnd,
-                    destStart: res2.SrcStart,
-                    destEnd: res2.SrcEnd
+                    SrcStart: res2.DestStart,
+                    SrcEnd: res2.DestEnd,
+                    DestStart: res2.SrcStart,
+                    DestEnd: res2.SrcEnd
                 );
             }
         }
@@ -100,10 +100,10 @@ internal static class PartialRatioStrategy
         {
             res = new ScoreAlignment(
                 res.Score,
-                srcStart: res.DestStart,
-                srcEnd: res.DestEnd,
-                destStart: res.SrcStart,
-                destEnd: res.SrcEnd
+                SrcStart: res.DestStart,
+                SrcEnd: res.DestEnd,
+                DestStart: res.SrcStart,
+                DestEnd: res.SrcEnd
             );
         }
 
@@ -153,7 +153,7 @@ internal static class PartialRatioStrategy
                 cutoff = sim;
                 res.DestStart = 0;
                 res.DestEnd = i;
-                if (sim == 1.0) { res.Score = 100.0; return res; }
+                if (sim >= .995) { res.Score = 100.0; return res; }
             }
         }
 
@@ -169,7 +169,7 @@ internal static class PartialRatioStrategy
                 cutoff = sim;
                 res.DestStart = i;
                 res.DestEnd = i + len1;
-                if (sim == 1.0) { res.Score = 100.0; return res; }
+                if (sim >= .995) { res.Score = 100.0; return res; }
             }
         }
 
@@ -185,7 +185,7 @@ internal static class PartialRatioStrategy
                 cutoff = sim;
                 res.DestStart = i;
                 res.DestEnd = len2;
-                if (sim == 1.0) { res.Score = 100.0; return res; }
+                if (sim >= .995) { res.Score = 100.0; return res; }
             }
         }
 
@@ -193,12 +193,6 @@ internal static class PartialRatioStrategy
 
         return res;
     }
-    private struct ScoreAlignment(double score, int srcStart, int srcEnd, int destStart, int destEnd)
-    {
-        /// <summary>Normalized score in [0,100].</summary>
-        public double Score = score;
-        public readonly int SrcStart = srcStart;
-        public readonly int SrcEnd = srcEnd;
-        public int DestStart = destStart, DestEnd = destEnd;
-    }
+    
+    private record struct ScoreAlignment(double Score, int SrcStart, int SrcEnd, int DestStart, int DestEnd);
 }

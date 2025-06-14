@@ -2,7 +2,7 @@
 
 namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive;
 
-public class PartialTokenInitialismScorer : TokenInitialismScorerBase
+public sealed class PartialTokenInitialismScorer : TokenInitialismScorerBase
 {
     protected override FuzzySharp.Scorer Scorer => PartialRatioStrategy.Calculate;
 }

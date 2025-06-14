@@ -3,7 +3,7 @@ using System;
 
 namespace Raffinert.FuzzySharp;
 
-public partial class Indel
+public sealed partial class Indel
 {
     private readonly string _source;
     private readonly CharMaskBuffer<char> _charMask;

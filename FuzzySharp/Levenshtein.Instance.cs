@@ -7,7 +7,7 @@ namespace Raffinert.FuzzySharp;
 /// Provides static methods for computing the Levenshtein distance and similarity between sequences.
 /// Implements bit-parallel and dynamic programming algorithms inspired by RapidFuzz's Levenshtein implementation.
 /// </summary>
-public partial class Levenshtein : IDisposable
+public sealed partial class Levenshtein : IDisposable
 {
     private readonly string _source;
     private readonly CharMaskBuffer<char> _charMask;

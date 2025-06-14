@@ -26,7 +26,7 @@ namespace Raffinert.FuzzySharp.Utils;
 /// </summary>
 [DebuggerTypeProxy(typeof(DictionarySlimPooledDebugView<,>))]
 [DebuggerDisplay("Count = {Count}")]
-internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
+internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
 {
     private static readonly Entry[] InitialEntries = new Entry[1];
     private static readonly int[] InitialBuckets = HashHelpers.SizeOneIntArray;

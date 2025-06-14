@@ -1,19 +1,19 @@
 ```
 
-BenchmarkDotNet v0.14.0, Windows 11 (10.0.26100.4061)
-12th Gen Intel Core i7-1255U, 1 CPU, 12 logical and 10 physical cores
-.NET SDK 9.0.300
-  [Host]   : .NET 9.0.5 (9.0.525.21509), X64 RyuJIT AVX2
-  ShortRun : .NET 9.0.5 (9.0.525.21509), X64 RyuJIT AVX2
+BenchmarkDotNet v0.15.1, Windows 11 (10.0.26100.4351/24H2/2024Update/HudsonValley)
+12th Gen Intel Core i7-1255U 2.60GHz, 1 CPU, 12 logical and 10 physical cores
+.NET SDK 9.0.301
+  [Host]   : .NET 9.0.6 (9.0.625.26613), X64 RyuJIT AVX2
+  ShortRun : .NET 9.0.6 (9.0.625.26613), X64 RyuJIT AVX2
 
 Job=ShortRun  IterationCount=3  LaunchCount=1  
 WarmupCount=3  
 
 ```
-| Method            | Mean       | Error      | StdDev     | Ratio | RatioSD | Gen0       | Gen1       | Allocated   | Alloc Ratio |
-|------------------ |-----------:|-----------:|-----------:|------:|--------:|-----------:|-----------:|------------:|------------:|
-| NaiveDp           | 278.116 ms | 341.771 ms | 18.7336 ms |  1.00 |    0.08 | 43500.0000 | 34500.0000 | 275312920 B |       1.000 |
-| FuzzySharpClassic | 171.440 ms | 258.661 ms | 14.1781 ms |  0.62 |    0.06 |          - |          - |   1545732 B |       0.006 |
-| Fastenshtein      | 149.119 ms | 122.272 ms |  6.7022 ms |  0.54 |    0.04 |          - |          - |     34028 B |       0.000 |
-| Quickenshtein     |  17.234 ms |  38.280 ms |  2.0982 ms |  0.06 |    0.01 |          - |          - |        23 B |       0.000 |
-| FuzzySharp        |   5.638 ms |   1.617 ms |  0.0886 ms |  0.02 |    0.00 |          - |          - |      3051 B |       0.000 |
+| Method            | Mean       | Error       | StdDev    | Ratio | RatioSD | Gen0       | Gen1       | Allocated   | Alloc Ratio |
+|------------------ |-----------:|------------:|----------:|------:|--------:|-----------:|-----------:|------------:|------------:|
+| NaiveDp           | 243.037 ms |  45.1515 ms | 2.4749 ms |  1.00 |    0.01 | 43666.6667 | 35333.3333 | 275312853 B |       1.000 |
+| FuzzySharpClassic | 149.659 ms |  10.5321 ms | 0.5773 ms |  0.62 |    0.01 |          - |          - |   1545732 B |       0.006 |
+| Fastenshtein      | 137.856 ms | 121.5120 ms | 6.6605 ms |  0.57 |    0.02 |          - |          - |     34028 B |       0.000 |
+| Quickenshtein     |  13.651 ms |   1.8536 ms | 0.1016 ms |  0.06 |    0.00 |          - |          - |        12 B |       0.000 |
+| FuzzySharp        |   5.478 ms |   0.4256 ms | 0.0233 ms |  0.02 |    0.00 |          - |          - |      3051 B |       0.000 |

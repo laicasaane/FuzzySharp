@@ -8,7 +8,7 @@ namespace Raffinert.FuzzySharp;
 /// Provides static methods for calculating the Indel (insertion-deletion) distance and similarity between sequences.
 /// Implements algorithms inspired by RapidFuzz's Indel distance implementation.
 /// </summary>
-public partial class Indel
+public sealed partial class Indel
 {
     /// <summary>
     /// Computes the Indel distance using precomputed block data for the first sequence.
