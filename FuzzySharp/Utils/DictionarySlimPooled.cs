@@ -29,7 +29,7 @@ namespace Raffinert.FuzzySharp.Utils;
 internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollection<KeyValuePair<TKey, TValue>> where TKey : IEquatable<TKey>
 {
     private static readonly Entry[] InitialEntries = new Entry[1];
-    private static readonly int[] InitialBuckets = HashHelpers.SizeOneIntArray; // value 0 implies empty
+    private static readonly int[] InitialBuckets = HashHelpers.SizeOneIntArray;
 
     private int _count;
     private int _freeList = -1; // 0-based index into _entries of head of free chain; -1 means empty
@@ -342,14 +342,13 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
         private readonly DictionarySlimPooled<TKey, TValue> _dictionary;
         private int _index;
         private int _remaining; // remaining count to enumerate
-        private KeyValuePair<TKey, TValue> _current;
 
         internal Enumerator(DictionarySlimPooled<TKey, TValue> dictionary)
         {
             _dictionary = dictionary;
             _index = 0;
             _remaining = dictionary._count;
-            _current = default;
+            Current = default;
         }
 
         /// <summary>
@@ -359,7 +358,7 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
         {
             if (_remaining == 0)
             {
-                _current = default;
+                Current = default;
                 return false;
             }
 
@@ -371,11 +370,11 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
 
             if (_index >= entries.Length)
             {
-                _current = default;
+                Current = default;
                 return false;
             }
 
-            _current = new KeyValuePair<TKey, TValue>(
+            Current = new KeyValuePair<TKey, TValue>(
                 entries[_index].key,
                 entries[_index].value);
 
@@ -384,13 +383,14 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
             return true;
         }
 
-        public KeyValuePair<TKey, TValue> Current => _current;
-        object IEnumerator.Current => _current;
+        public KeyValuePair<TKey, TValue> Current { get; private set; }
+
+        object IEnumerator.Current => Current;
         public void Reset()
         {
             _index = 0;
             _remaining = _dictionary._count;
-            _current = default;
+            Current = default;
         }
         public void Dispose() { }
     }
@@ -401,14 +401,10 @@ internal class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnlyCollec
     }
 }
 
-internal sealed class DictionarySlimPooledDebugView<K, V> where K : IEquatable<K>
+internal sealed class DictionarySlimPooledDebugView<K, V>(DictionarySlimPooled<K, V> dictionary)
+    where K : IEquatable<K>
 {
-    private readonly DictionarySlimPooled<K, V> _dictionary;
-
-    public DictionarySlimPooledDebugView(DictionarySlimPooled<K, V> dictionary)
-    {
-        _dictionary = dictionary ?? throw new ArgumentNullException(nameof(dictionary));
-    }
+    private readonly DictionarySlimPooled<K, V> _dictionary = dictionary ?? throw new ArgumentNullException(nameof(dictionary));
 
     [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
     public KeyValuePair<K, V>[] Items => _dictionary.ToArray();

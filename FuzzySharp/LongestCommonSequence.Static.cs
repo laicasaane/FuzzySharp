@@ -10,7 +10,7 @@ namespace Raffinert.FuzzySharp;
 /// Provides static methods for computing the Longest Common Subsequence (LCS) and related similarity metrics.
 /// Implements a bit-parallel LCS algorithm inspired by RapidFuzz's LCSseq implementation.
 /// </summary>
-public static class LongestCommonSequence
+public partial class LongestCommonSequence
 {
     /// <summary>
     /// Computes the LCS-based distance between two sequences.
@@ -33,8 +33,26 @@ public static class LongestCommonSequence
             processor(ref s2);
         }
 
+        var blocks = (s1.Length + 63) >> 6;
+
+        using var charMask = new CharMaskBuffer<T>(64, blocks);
+
+        for (var i = 0; i < s1.Length; i++)
+        {
+            charMask.AddBit(s1[i], i);
+        }
+
+        return DistanceImpl(s1, s2, charMask, scoreCutoff);
+    }
+
+    private static int DistanceImpl<T>(
+        ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        CharMaskBuffer<T> charMask,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
         int maximum = Math.Max(s1.Length, s2.Length);
-        int sim = Similarity(s1, s2);
+        int sim = SimilarityImpl(s1, s2, charMask);
         int dist = maximum - sim;
 
         var result = scoreCutoff == null || dist <= scoreCutoff.Value
@@ -305,9 +323,27 @@ public static class LongestCommonSequence
             processor(ref s2);
         }
 
+        var blocks = (s1.Length + 63) >> 6;
+
+        using var charMask = new CharMaskBuffer<T>(64, blocks);
+
+        for (var i = 0; i < s1.Length; i++)
+        {
+            charMask.AddBit(s1[i], i);
+        }
+
+        return SimilarityImpl(s1, s2, charMask, scoreCutoff);
+    }
+
+    internal static int SimilarityImpl<T>(
+        ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        CharMaskBuffer<T> charMask,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
         var sim = s1.Length > 64
-            ? SimilarityMultipleULongs(s1, s2)
-            : SimilaritySingleULong(s1, s2);
+            ? SimilarityMultipleULongs(s1, s2, charMask)
+            : SimilaritySingleULong(s1, s2, charMask);
 
         var result = scoreCutoff == null || sim >= scoreCutoff.Value
             ? sim
@@ -526,24 +562,13 @@ public static class LongestCommonSequence
         return (sim, matrix);
     }
 
-    private static int SimilarityMultipleULongs<T>(
-        ReadOnlySpan<T> s1,
-        ReadOnlySpan<T> s2
-    ) where T : IEquatable<T>
+    private static int SimilarityMultipleULongs<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
         if (s1.IsEmpty)
             return 0;
 
         int len1 = s1.Length;
         int segCount = (len1 + 63) / 64;
-
-        // --- 1) build per-symbol bit-masks (one ulong[] per distinct T) ---
-
-        using var block = new CharMaskBuffer<T>(64, segCount);
-        for (int i = 0; i < len1; i++)
-        {
-            block.AddBit(s1[i], i);
-        }
 
         // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
         ulong[] mask = new ulong[segCount];
@@ -559,7 +584,7 @@ public static class LongestCommonSequence
         // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
         foreach (T ch in s2)
         {
-            var M = block.GetOrZero(ch);
+            var M = charMask.GetOrZero(ch);
 
             // u = S & M
             var u = new ulong[segCount];
@@ -599,29 +624,21 @@ public static class LongestCommonSequence
         return lcs;
     }
 
-    private static int SimilaritySingleULong<T>(
-        ReadOnlySpan<T> s1,
-        ReadOnlySpan<T> s2) where T : IEquatable<T>
+    private static int SimilaritySingleULong<T>(ReadOnlySpan<T> s1, ReadOnlySpan<T> s2, CharMaskBuffer<T> charMask) where T : IEquatable<T>
     {
         if (s1.IsEmpty)
             return 0;
 
         int len1 = s1.Length;
 
-        // Build bit-mask for each character in s1
         ulong mask = len1 == 64 ? ulong.MaxValue : (1UL << len1) - 1UL;
-        using var block = new CharMaskBuffer<T>(64, 1);
-        for (int i = 0; i < len1; i++)
-        {
-            block.AddBit(s1[i], i);
-        }
 
         // Bit-parallel LCS loop
         ulong S = mask;
         foreach (T ch2 in s2)
         {
-            ulong Matches = block.GetOrZero(ch2)[0];
-            ulong u = S & Matches;
+            ulong M = charMask.GetOrZero(ch2)[0];
+            ulong u = S & M;
             unchecked
             {
                 S = (S + u) | (S - u);

@@ -130,23 +130,13 @@ internal static class PartialRatioStrategy
 
         // Build bit-mask dictionary for s1
         int segCount = (len1 + 63) / 64;
-        using var block = new CharMaskBuffer<T>(64, segCount);
+        using var charMask = new CharMaskBuffer<T>(64, segCount);
 
         for (int i = 0; i < len1; i++)
         {
-            block.AddBit(s1[i], i);
+            charMask.AddBit(s1[i], i);
         }
         
-        //var block = new Dictionary<T, ulong[]>();
-        //for (int i = 0; i < len1; i++)
-        //{
-        //    var key = s1[i];
-        //    int seg = i / 64, bit = i % 64;
-        //    if (!block.TryGetValue(key, out var arr))
-        //        block[key] = arr = new ulong[segCount];
-        //    arr[seg] |= 1UL << bit;
-        //}
-
         // Precompute s1’s character set for fast Contains
         var charSet = new HashSet<T>(s1.ToArray());
 
@@ -156,7 +146,7 @@ internal static class PartialRatioStrategy
         {
             if (!charSet.Contains(s2[i - 1])) continue;
             var slice = s2[..i];
-            double sim = IndelLcs.BlockNormalizedSimilarity(block, s1, slice);
+            double sim = Indel.BlockNormalizedSimilarity(charMask, s1, slice);
             if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
             {
                 res.Score = sim;
@@ -172,7 +162,7 @@ internal static class PartialRatioStrategy
         {
             if (!charSet.Contains(s2[i + len1 - 1])) continue;
             var window = s2[i..(i + len1)];
-            double sim = IndelLcs.BlockNormalizedSimilarity(block, s1, window);
+            double sim = Indel.BlockNormalizedSimilarity(charMask, s1, window);
             if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
             {
                 res.Score = sim;
@@ -188,7 +178,7 @@ internal static class PartialRatioStrategy
         {
             if (!charSet.Contains(s2[i])) continue;
             var tail = s2[i..];
-            double sim = IndelLcs.BlockNormalizedSimilarity(block, s1, tail);
+            double sim = Indel.BlockNormalizedSimilarity(charMask, s1, tail);
             if (sim > res.Score && (!cutoff.HasValue || sim >= cutoff.Value))
             {
                 res.Score = sim;

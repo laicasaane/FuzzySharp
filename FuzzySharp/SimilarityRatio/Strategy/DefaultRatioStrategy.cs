@@ -14,6 +14,6 @@ internal static class DefaultRatioStrategy
         var input1Span = input1.AsSpan();
         var input2Span = input2.AsSpan();
 
-        return (int)Math.Round(100 * IndelLcs.NormalizedSimilarity(input1Span, input2Span));
+        return (int)Math.Round(100 * Indel.NormalizedSimilarity(input1Span, input2Span));
     }
 }

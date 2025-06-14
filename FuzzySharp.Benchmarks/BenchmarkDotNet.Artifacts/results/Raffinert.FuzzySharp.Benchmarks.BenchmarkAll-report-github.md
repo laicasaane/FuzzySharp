@@ -12,36 +12,39 @@ WarmupCount=3
 ```
 | Method                               | Mean         | Error        | StdDev       | Gen0   | Gen1   | Allocated |
 |------------------------------------- |-------------:|-------------:|-------------:|-------:|-------:|----------:|
-| Ratio1                               |    358.50 ns |  2,083.89 ns |   114.225 ns | 0.1578 |      - |     992 B |
-| Ratio2                               |    289.04 ns |    282.34 ns |    15.476 ns | 0.1578 |      - |     992 B |
-| PartialRatio                         |  2,126.11 ns |  1,405.77 ns |    77.055 ns | 1.8196 |      - |   11424 B |
-| TokenSortRatio                       |  1,008.38 ns |  1,003.47 ns |    55.004 ns | 0.2480 |      - |    1560 B |
-| PartialTokenSortRatio                |  4,181.22 ns |  1,916.51 ns |   105.050 ns | 2.9068 | 0.0076 |   18256 B |
-| TokenSetRatio                        |  1,576.98 ns |    197.60 ns |    10.831 ns | 0.8087 | 0.0019 |    5080 B |
-| PartialTokenSetRatio                 |  4,985.15 ns |  2,172.85 ns |   119.101 ns | 3.2425 |      - |   20368 B |
-| WeightedRatio                        |  7,293.84 ns |  8,752.32 ns |   479.744 ns | 2.3880 | 0.0076 |   14984 B |
-| TokenInitialismRatio1                |    207.49 ns |     46.30 ns |     2.538 ns | 0.1364 |      - |     856 B |
-| TokenInitialismRatio2                |    169.36 ns |    118.49 ns |     6.495 ns | 0.0892 |      - |     560 B |
-| TokenInitialismRatio3                |    363.31 ns |     84.22 ns |     4.616 ns | 0.1845 |      - |    1160 B |
-| PartialTokenInitialismRatio          |    577.10 ns |    372.96 ns |    20.443 ns | 0.3490 |      - |    2192 B |
-| TokenAbbreviationRatio               |    743.23 ns |    701.61 ns |    38.457 ns | 0.3290 |      - |    2064 B |
-| PartialTokenAbbreviationRatio        |    764.30 ns |    450.01 ns |    24.666 ns | 0.3710 | 0.0010 |    2328 B |
-| Ratio1Classic                        |    224.75 ns |    147.63 ns |     8.092 ns | 0.0508 |      - |     320 B |
-| Ratio2Classic                        |     52.67 ns |     18.35 ns |     1.006 ns | 0.0318 |      - |     200 B |
-| PartialRatioClassic                  |  1,042.90 ns |  3,651.91 ns |   200.174 ns | 0.5360 | 0.0019 |    3368 B |
-| TokenSortRatioClassic                |  1,258.49 ns |    223.59 ns |    12.256 ns | 0.3414 |      - |    2152 B |
-| PartialTokenSortRatioClassic         |  1,394.65 ns |    972.10 ns |    53.284 ns | 0.3929 |      - |    2472 B |
-| TokenSetRatioClassic                 |  2,736.42 ns |  5,678.59 ns |   311.263 ns | 0.6714 |      - |    4224 B |
-| PartialTokenSetRatioClassic          |  2,293.80 ns |  1,747.16 ns |    95.768 ns | 0.9079 |      - |    5712 B |
-| WeightedRatioClassic                 | 10,634.40 ns |  4,949.97 ns |   271.325 ns | 2.0294 |      - |   12770 B |
-| TokenInitialismRatio1Classic         |    424.46 ns |    112.42 ns |     6.162 ns | 0.1440 |      - |     904 B |
-| TokenInitialismRatio2Classic         |    356.26 ns |    345.33 ns |    18.929 ns | 0.1173 |      - |     736 B |
-| TokenInitialismRatio3Classic         |    825.27 ns |    541.81 ns |    29.698 ns | 0.2470 |      - |    1552 B |
-| PartialTokenInitialismRatioClassic   |  1,065.48 ns |  2,187.22 ns |   119.889 ns | 0.3414 |      - |    2144 B |
-| TokenAbbreviationRatioClassic        |  1,528.49 ns |  3,978.29 ns |   218.064 ns | 0.4749 |      - |    2984 B |
-| PartialTokenAbbreviationRatioClassic |  1,853.71 ns |  3,209.11 ns |   175.902 ns | 0.6199 |      - |    3896 B |
-| ExtractOne                           | 18,716.58 ns | 98,495.68 ns | 5,398.881 ns | 5.6915 | 0.0305 |   35704 B |
-| ExtractOneClassic                    | 25,707.00 ns | 30,187.36 ns | 1,654.671 ns | 4.4556 |      - |   28003 B |
-| FuzzySharpDistance                   |    431.06 ns |    178.86 ns |     9.804 ns |      - |      - |         - |
-| FastenshteinDistance                 |    782.00 ns |    612.26 ns |    33.560 ns | 0.0229 |      - |     144 B |
-| QuickenshteinDistance                |    693.60 ns |    188.01 ns |    10.306 ns |      - |      - |         - |
+| Ratio1                               |    307.04 ns |    706.09 ns |    38.703 ns | 0.0191 |      - |     120 B |
+| Ratio2                               |    129.14 ns |    102.86 ns |     5.638 ns | 0.0191 |      - |     120 B |
+| PartialRatio                         |  2,539.51 ns |  2,921.08 ns |   160.114 ns | 1.5869 |      - |    9960 B |
+| TokenSortRatio                       |    810.80 ns |    378.79 ns |    20.763 ns | 0.1097 |      - |     688 B |
+| PartialTokenSortRatio                |  5,764.13 ns |  3,249.17 ns |   178.098 ns | 2.9068 | 0.0076 |   18264 B |
+| TokenSetRatio                        |  1,525.59 ns |    646.29 ns |    35.425 ns | 0.3910 |      - |    2464 B |
+| PartialTokenSetRatio                 |  7,589.84 ns |  8,172.15 ns |   447.943 ns | 3.2501 |      - |   20392 B |
+| WeightedRatio                        |  6,905.35 ns |  1,432.27 ns |    78.508 ns | 0.8240 |      - |    5184 B |
+| TokenInitialismRatio1                |    424.21 ns |  2,342.81 ns |   128.417 ns | 0.0815 |      - |     512 B |
+| TokenInitialismRatio2                |    274.64 ns |    227.72 ns |    12.482 ns | 0.0739 |      - |     464 B |
+| TokenInitialismRatio3                |    604.76 ns |  1,345.20 ns |    73.735 ns | 0.1297 |      - |     816 B |
+| PartialTokenInitialismRatio          |    834.24 ns |  1,018.95 ns |    55.852 ns | 0.3490 |      - |    2200 B |
+| TokenAbbreviationRatio               |  1,051.41 ns |     32.58 ns |     1.786 ns | 0.2728 |      - |    1720 B |
+| PartialTokenAbbreviationRatio        |  1,510.53 ns |  1,444.21 ns |    79.162 ns | 0.3662 |      - |    2304 B |
+| Ratio1Classic                        |    297.40 ns |    242.50 ns |    13.292 ns | 0.0505 |      - |     320 B |
+| Ratio2Classic                        |     56.62 ns |     23.92 ns |     1.311 ns | 0.0318 |      - |     200 B |
+| PartialRatioClassic                  |  1,128.52 ns |    373.71 ns |    20.484 ns | 0.5360 | 0.0019 |    3368 B |
+| TokenSortRatioClassic                |  1,711.46 ns |  1,238.74 ns |    67.900 ns | 0.3414 |      - |    2152 B |
+| PartialTokenSortRatioClassic         |  1,901.65 ns |  4,033.33 ns |   221.080 ns | 0.3929 |      - |    2472 B |
+| TokenSetRatioClassic                 |  3,857.32 ns |  2,329.69 ns |   127.698 ns | 0.6714 |      - |    4224 B |
+| PartialTokenSetRatioClassic          |  2,898.19 ns |    552.22 ns |    30.269 ns | 0.9079 |      - |    5712 B |
+| WeightedRatioClassic                 | 13,659.51 ns | 18,333.47 ns | 1,004.919 ns | 2.0294 |      - |   12770 B |
+| TokenInitialismRatio1Classic         |    603.20 ns |    201.26 ns |    11.032 ns | 0.1440 |      - |     904 B |
+| TokenInitialismRatio2Classic         |    457.80 ns |    103.45 ns |     5.671 ns | 0.1173 |      - |     736 B |
+| TokenInitialismRatio3Classic         |  1,235.10 ns |     75.36 ns |     4.131 ns | 0.2460 |      - |    1552 B |
+| PartialTokenInitialismRatioClassic   |  1,343.69 ns |  1,267.60 ns |    69.481 ns | 0.3414 |      - |    2144 B |
+| TokenAbbreviationRatioClassic        |  1,493.74 ns |    667.17 ns |    36.570 ns | 0.4749 |      - |    2984 B |
+| PartialTokenAbbreviationRatioClassic |  1,795.85 ns |  2,026.87 ns |   111.099 ns | 0.6199 | 0.0019 |    3896 B |
+| ExtractOne                           | 16,890.04 ns |  9,793.73 ns |   536.827 ns | 1.9379 |      - |   12208 B |
+| ExtractOneClassic                    | 26,967.47 ns |  4,814.40 ns |   263.894 ns | 4.4556 |      - |   28003 B |
+| FuzzySharpClassicDistance            |  1,096.72 ns |    205.53 ns |    11.266 ns | 0.0496 |      - |     320 B |
+| FuzzySharpDistance                   |    484.93 ns |    152.26 ns |     8.346 ns | 0.0191 |      - |     120 B |
+| FastenshteinDistance                 |    797.85 ns |    263.06 ns |    14.419 ns | 0.0229 |      - |     144 B |
+| FuzzySharpDistanceFrom               |    141.41 ns |     35.55 ns |     1.948 ns |      - |      - |         - |
+| FastenshteinDistanceFrom             |    827.50 ns |    338.72 ns |    18.567 ns |      - |      - |         - |
+| QuickenshteinDistance                |    685.36 ns |    192.51 ns |    10.552 ns |      - |      - |         - |

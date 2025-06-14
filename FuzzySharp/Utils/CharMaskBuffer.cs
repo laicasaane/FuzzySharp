@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Raffinert.FuzzySharp.Utils;
 
@@ -12,6 +13,7 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
     private int _capacity;
     private int _next;
     private readonly ulong[] _zeroMask;
+    private bool _disposed;
 
     public CharMaskBuffer(int estimatedCharCount, int blocks, ArrayPool<ulong> pool = null)
     {
@@ -25,8 +27,11 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
         _next = 0;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddBit(T key, int position)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(CharMaskBuffer<T>));
+
         ref var index = ref _indexMap.GetOrAddValueRef(key);
 
         if (index == 0)
@@ -64,6 +69,8 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
 
     public bool TryGetMask(T key, out ReadOnlySpan<ulong> mask)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(CharMaskBuffer<T>));
+
         if (_indexMap.TryGetValue(key, out var index))
         {
             mask = new ReadOnlySpan<ulong>(_buffer, (index - 1) * _blocks, _blocks);
@@ -83,10 +90,28 @@ public sealed class CharMaskBuffer<T> : IDisposable where T : notnull, IEquatabl
         return TryGetMask(key, out var mask) ? mask : fallback;
     }
 
+    ~CharMaskBuffer()
+    {
+        Dispose(false);
+    }
+
     public void Dispose()
     {
-        _pool.Return(_buffer);
-        _pool.Return(_zeroMask);
-        _indexMap.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+
+        if (disposing)
+        {
+            _indexMap.Dispose();
+            _pool.Return(_buffer);
+            _pool.Return(_zeroMask);
+        }
+
+        _disposed = true;
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace Raffinert.FuzzySharp.Benchmarks;
 
@@ -18,7 +19,7 @@ public static class RandomWords
         {
             var wordSize = random.Next(3, maxWordSize);
 
-            words[i] = string.Create(wordSize, random, static (word, r) =>
+            words[i] = StringCompat.Create(wordSize, random, static (word, r) =>
             {
                 for (var j = 0; j < word.Length; j++)
                 {
@@ -30,4 +31,27 @@ public static class RandomWords
 
         return words;
     }
+
+    public static class StringCompat
+    {
+        public static string Create<TState>(int length, TState state, SpanAction<char, TState> action)
+        {
+#if NETCOREAPP
+            return string.Create(length, state, action);
+#else
+
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length));
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            var chars = new char[length];
+            action(chars.AsSpan(), state);
+            return new string(chars);
+#endif
+        }
+    }
+#if !NETCOREAPP
+    public delegate void SpanAction<T, in TArg>(Span<T> span, TArg arg);
+#endif
 }

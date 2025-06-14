@@ -8,7 +8,7 @@ namespace Raffinert.FuzzySharp;
 /// Provides static methods for calculating the Indel (insertion-deletion) distance and similarity between sequences.
 /// Implements algorithms inspired by RapidFuzz's Indel distance implementation.
 /// </summary>
-public static class IndelLcs
+public partial class Indel
 {
     /// <summary>
     /// Computes the Indel distance using precomputed block data for the first sequence.
@@ -110,12 +110,29 @@ public static class IndelLcs
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static int DistanceImpl<T>(ReadOnlySpan<T> s1,
+    private static int DistanceImpl<T>(ReadOnlySpan<T> s1,
         ReadOnlySpan<T> s2,
         int? scoreCutoff = null) where T : IEquatable<T>
     {
+        var blocks = (s1.Length + 63) >> 6;
+
+        using var charMask = new CharMaskBuffer<T>(64, blocks);
+        for (var i = 0; i < s1.Length; i++)
+        {
+            charMask.AddBit(s1[i], i);
+        }
+
+        return DistanceImpl(s1, s2, charMask, scoreCutoff);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int DistanceImpl<T>(ReadOnlySpan<T> s1,
+        ReadOnlySpan<T> s2,
+        CharMaskBuffer<T> charMask,
+        int? scoreCutoff = null) where T : IEquatable<T>
+    {
         var maximum = s1.Length + s2.Length;
-        var lcsSim = LongestCommonSequence.Similarity(s1, s2);
+        var lcsSim = LongestCommonSequence.SimilarityImpl(s1, s2, charMask);
         var dist = maximum - 2 * lcsSim;
         var result = scoreCutoff == null || dist <= scoreCutoff.Value
             ? dist
