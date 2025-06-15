@@ -34,71 +34,76 @@ public class EditOpsTests
     }
 
     [Test]
-    public void GetEditOps_TrampWoodpecker_ReturnsExpectedEditOps()
+    public void GetEditOps_putinIsWarCriminal_ReturnsExpectedEditOps()
     {
         // Arrange
-        string source = "Trump";
-        string target = "Woodpecker";
+        string source = "putin";
+        string target = "war criminal";
 
         // Act
         var ops = Levenshtein.GetEditOps(source, target);
-        //var ops1 = Levenshtein.GetEditOps(source.AsSpan(), target.AsSpan());
 
         Assert.That(ops, Is.EquivalentTo(new[]
         {
             new EditOp
             {
-                EditType = EditType.REPLACE,
+                EditType = EditType.INSERT,
                 SourcePos = 0,
                 DestPos = 0
             },
             new EditOp
             {
-                EditType = EditType.REPLACE,
-                SourcePos = 1,
+                EditType = EditType.INSERT,
+                SourcePos = 0,
                 DestPos = 1
             },
             new EditOp
             {
-                EditType = EditType.REPLACE,
-                SourcePos = 2,
+                EditType = EditType.INSERT,
+                SourcePos = 0,
                 DestPos = 2
             },
             new EditOp
             {
                 EditType = EditType.REPLACE,
-                SourcePos = 3,
+                SourcePos = 0,
                 DestPos = 3
             },
             new EditOp
             {
-                EditType = EditType.INSERT,
-                SourcePos = 5,
+                EditType = EditType.REPLACE,
+                SourcePos = 1,
+                DestPos = 4
+            },
+            new EditOp
+            {
+                EditType = EditType.REPLACE,
+                SourcePos = 2,
                 DestPos = 5
             },
             new EditOp
             {
                 EditType = EditType.INSERT,
-                SourcePos = 5,
-                DestPos = 6
-            },
-            new EditOp
-            {
-                EditType = EditType.INSERT,
-                SourcePos = 5,
+                SourcePos = 4,
                 DestPos = 7
             },
             new EditOp
             {
                 EditType = EditType.INSERT,
-                SourcePos = 5,
+                SourcePos = 4,
                 DestPos = 8
             },
             new EditOp
             {
                 EditType = EditType.INSERT,
                 SourcePos = 5,
-                DestPos = 9
+                DestPos = 10
+            },
+            new EditOp
+            {
+                EditType = EditType.INSERT,
+                SourcePos = 5,
+                DestPos = 11
             }
         }));
     }
