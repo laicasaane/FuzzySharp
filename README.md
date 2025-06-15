@@ -1,9 +1,5 @@
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
 
-# Raffinert.FuzzySharp
-
-C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
-
 ## Terms of use<sup>[[?]](https://github.com/Tyrrrz/.github/blob/master/docs/why-so-political.md)</sup>
 
 By using this project or its source code, for any purpose and in any shape or form, you grant your **implicit agreement** to all the following statements:
@@ -14,6 +10,10 @@ By using this project or its source code, for any purpose and in any shape or fo
 - You **reject false narratives perpetuated by Russian state propaganda**
 
 To learn more about the war and how you can help, [click here](https://stand-with-ukraine.pp.ua). Glory to Ukraine! 🇺🇦
+
+# Raffinert.FuzzySharp
+
+C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
