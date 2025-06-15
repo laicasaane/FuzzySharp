@@ -4,6 +4,17 @@
 
 C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
 
+## Terms of use<sup>[[?]](https://github.com/Tyrrrz/.github/blob/master/docs/why-so-political.md)</sup>
+
+By using this project or its source code, for any purpose and in any shape or form, you grant your **implicit agreement** to all the following statements:
+
+- You **condemn Russia and its military aggression against Ukraine**
+- You **recognize that Russia is an occupant that unlawfully invaded a sovereign state**
+- You **support Ukraine's territorial integrity, including its claims over temporarily occupied territories of Crimea and Donbas**
+- You **reject false narratives perpetuated by Russian state propaganda**
+
+To learn more about the war and how you can help, [click here](https://stand-with-ukraine.pp.ua). Glory to Ukraine! 🇺🇦
+
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
 Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fastenshtein and Quickenshtein:
@@ -50,7 +61,7 @@ Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
 
 - **Usage Notes:** The public API for fuzzy scoring remains the same. You do not need to change any code to benefit from these improvements – all improvements are under the hood. Simply update to this version, and `Fuzz.PartialRatio` and related methods will automatically produce better results. If your application had workaround code or custom post-processing due to the previous partial ratio quirks, you may consider simplifying it now. For example, if you lowered a threshold because partial matches scored unexpectedly high, you might re-tune that threshold given the more faithful scoring. Overall, the upgrade should be smooth: all existing method signatures and return types are unchanged, and only the accuracy of results (and potentially their ordering when ranking matches) has improved.
 
-- Ported from python library [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)
+- Ported from [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)
 
 v.2.0.3
 
@@ -65,6 +76,7 @@ v.2.0.0
 As of 2.0.0, all empty strings will return a score of 0. Prior, the partial scoring system would return a score of 100, regardless if the other input had correct value or not. This was a result of the partial scoring system returning an empty set for the matching blocks As a result, this led to incorrrect values in the composite scores; several of them (token set, token sort), relied on the prior value of empty strings.
 
 As a result, many 1.X.X unit test may be broken with the 2.X.X upgrade, but it is within the expertise fo all the 1.X.X developers to recommednd the upgrade to the 2.X.X series regardless, should their version accommodate it or not, as it is closer to the ideal behavior of the library.
+
 
 ## Usage
 
