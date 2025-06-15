@@ -1,3 +1,5 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 # Raffinert.FuzzySharp
 
 C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
@@ -8,38 +10,47 @@ Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fasten
 
 Random words of 3 to 64 random chars (LevenshteinSmall.cs):
 
-| Method        | Mean     | Error     | StdDev    | Ratio | Gen0      | Gen1    | Allocated  | Alloc Ratio |
-|-------------- |---------:|----------:|----------:|------:|----------:|--------:|-----------:|------------:|
-| BaseLine      | 8.876 ms | 1.6983 ms | 0.0931 ms |  1.00 | 2078.1250 | 46.8750 | 13036006 B |       1.000 |
-| Fastenshtein  | 4.537 ms | 0.9515 ms | 0.0522 ms |  0.51 |         - |       - |     8939 B |       0.001 |
-| Quickenshtein | 2.735 ms | 0.2194 ms | 0.0120 ms |  0.31 |         - |       - |        4 B |       0.000 |
-| FuzzySharp    | 2.229 ms | 0.3800 ms | 0.0208 ms |  0.25 |         - |       - |        2 B |       0.000 |
+| Method            | Mean       | Error     | StdDev   | Ratio | RatioSD | Gen0     | Gen1   | Allocated | Alloc Ratio |
+|------------------ |-----------:|----------:|---------:|------:|--------:|---------:|-------:|----------:|------------:|
+| NaiveDp           | 1,841.4 μs | 753.15 μs | 41.28 μs |  1.00 |    0.03 | 371.0938 | 9.7656 | 2335169 B |       1.000 |
+| FuzzySharpClassic | 1,090.0 μs |  23.48 μs |  1.29 μs |  0.59 |    0.01 |  23.4375 |      - |  149793 B |       0.064 |
+| Fastenshtein      |   860.4 μs |  80.93 μs |  4.44 μs |  0.47 |    0.01 |        - |      - |    3728 B |       0.002 |
+| Quickenshtein     |   531.9 μs |  52.00 μs |  2.85 μs |  0.29 |    0.01 |        - |      - |       1 B |       0.000 |
+| FuzzySharp        |   117.7 μs |  11.88 μs |  0.65 μs |  0.06 |    0.00 |   0.3662 |      - |    3040 B |       0.001 |
 
 Random words of 3 to 128 random chars (LevenshteinNormal.cs):
 
-| Method        | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0      | Gen1     | Allocated  | Alloc Ratio |
-|-------------- |----------:|----------:|----------:|------:|--------:|----------:|---------:|-----------:|------------:|
-| BaseLine      | 43.596 ms | 50.118 ms | 2.7471 ms |  1.00 |    0.08 | 8000.0000 | 769.2308 | 50620095 B |       1.000 |
-| Fastenshtein  | 20.224 ms | 13.203 ms | 0.7237 ms |  0.47 |    0.03 |         - |        - |    16076 B |       0.000 |
-| Quickenshtein |  7.816 ms |  1.877 ms | 0.1029 ms |  0.18 |    0.01 |         - |        - |       17 B |       0.000 |
-| FuzzySharp    |  5.860 ms |  2.558 ms | 0.1402 ms |  0.13 |    0.01 |  320.3125 |        - |  2013603 B |       0.040 |
+| Method            | Mean       | Error       | StdDev    | Ratio | RatioSD | Gen0      | Gen1     | Allocated  | Alloc Ratio |
+|------------------ |-----------:|------------:|----------:|------:|--------:|----------:|---------:|-----------:|------------:|
+| NaiveDp           | 8,476.4 μs | 1,473.04 μs |  80.74 μs |  1.00 |    0.01 | 1593.7500 | 203.1250 | 10012118 B |       1.000 |
+| FuzzySharpClassic | 5,263.1 μs |   851.79 μs |  46.69 μs |  0.62 |    0.01 |   46.8750 |        - |   300051 B |       0.030 |
+| Fastenshtein      | 4,255.6 μs |   169.65 μs |   9.30 μs |  0.50 |    0.00 |         - |        - |     7067 B |       0.001 |
+| Quickenshtein     | 1,674.9 μs | 3,872.17 μs | 212.25 μs |  0.20 |    0.02 |         - |        - |        2 B |       0.000 |
+| FuzzySharp        |   463.1 μs |    64.00 μs |   3.51 μs |  0.05 |    0.00 |         - |        - |     3041 B |       0.000 |
 
 Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
 
-| Method        | Mean        | Error        | StdDev    | Ratio | RatioSD | Gen0        | Gen1        | Allocated    | Alloc Ratio |
-|-------------- |------------:|-------------:|----------:|------:|--------:|------------:|------------:|-------------:|------------:|
-| BaseLine      | 1,813.26 ms | 1,413.980 ms | 77.505 ms |  1.00 |    0.05 | 330000.0000 | 265000.0000 | 2070298480 B |       1.000 |
-| Fastenshtein  |   964.00 ms |   660.636 ms | 36.212 ms |  0.53 |    0.03 |           - |           - |      93256 B |       0.000 |
-| Quickenshtein |    91.74 ms |     6.908 ms |  0.379 ms |  0.05 |    0.00 |           - |           - |        123 B |       0.000 |
-| FuzzySharp    |    43.35 ms |     2.757 ms |  0.151 ms |  0.02 |    0.00 |   1416.6667 |           - |    9341905 B |       0.005 |
+| Method            | Mean       | Error       | StdDev    | Ratio | RatioSD | Gen0       | Gen1       | Allocated   | Alloc Ratio |
+|------------------ |-----------:|------------:|----------:|------:|--------:|-----------:|-----------:|------------:|------------:|
+| NaiveDp           | 243.037 ms |  45.1515 ms | 2.4749 ms |  1.00 |    0.01 | 43666.6667 | 35333.3333 | 275312853 B |       1.000 |
+| FuzzySharpClassic | 149.659 ms |  10.5321 ms | 0.5773 ms |  0.62 |    0.01 |          - |          - |   1545732 B |       0.006 |
+| Fastenshtein      | 137.856 ms | 121.5120 ms | 6.6605 ms |  0.57 |    0.02 |          - |          - |     34028 B |       0.000 |
+| Quickenshtein     |  13.651 ms |   1.8536 ms | 0.1016 ms |  0.06 |    0.00 |          - |          - |        12 B |       0.000 |
+| FuzzySharp        |   5.478 ms |   0.4256 ms | 0.0233 ms |  0.02 |    0.00 |          - |          - |      3051 B |       0.000 |
+
 
 # Release Notes:
-v 3.0.0
+**v3.0.0 (upcoming)** – *Partial Ratio Accuracy and Performance Update*  
 
-Ported from [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) with Copilot:
+- **Improved Partial Matching Accuracy:** The `PartialRatio` algorithm has been overhauled to ensure it always finds the best possible substring match between two strings. In earlier versions, `Fuzz.PartialRatio` could return suboptimal scores in certain cases (for example, when a short string appeared multiple times in a longer string, it didn’t always pick the highest scoring match). This has now been fixed. Partial ratio comparisons are **much more accurate**, resolving bugs inherited from the original FuzzyWuzzy implementation. You may notice that `PartialRatio` scores differ from previous versions – they now reflect the true highest similarity. For instance, if a string “foo” appears twice in “...foo...foo...”, `PartialRatio` will correctly return the higher score of the two occurrences.
 
-- The Levenshtein naive dynamic programming algorithm was replaced with the faster Myers' bit-parallel version.
-- Fuzz.PartialRatio and Fuzz.Ratio uses the longest common subsequence algorithm, see [ratio implementation](https://github.com/rapidfuzz/RapidFuzz/blob/main/api_differences.md#ratio-implementation) and [partial_ratio implememtation](https://github.com/rapidfuzz/RapidFuzz/blob/main/api_differences.md#partial_ratio-implementation).
+- **Consistent Scoring Behavior:** With this fix, partial matches will no longer be misidentified as full matches. Only a complete match will yield a 100 score, whereas a partially matching substring will receive a proportionally lower score. This change makes the behavior of partial scorers more intuitive. Functions like `Fuzz.PartialRatio`, `Fuzz.PartialTokenSortRatio`, `Fuzz.PartialTokenSetRatio`, etc., now all leverage the improved logic, so their results are more reliable across the board. This brings FuzzySharp’s output in line with expected fuzzy matching standards (matching the behavior of well-maintained libraries like RapidFuzz, while still running on .NET).
+
+- **Performance Optimizations:** The new implementation of `PartialRatio` was built with performance in mind. Despite the more sophisticated matching process, **fuzzy searches are just as fast** as before (in many cases faster). Internal algorithms for finding matches and calculating edit distances were optimized to reduce unnecessary allocations and computations. Advanced techniques (such as optimized character scanning and reuse of intermediate results) minimize overhead. This means you get improved accuracy **without any slowdown**. The library continues to be suitable for large-scale fuzzy matching (e.g., thousands of comparisons) with high performance.
+
+- **Usage Notes:** The public API for fuzzy scoring remains the same. You do not need to change any code to benefit from these improvements – all improvements are under the hood. Simply update to this version, and `Fuzz.PartialRatio` and related methods will automatically produce better results. If your application had workaround code or custom post-processing due to the previous partial ratio quirks, you may consider simplifying it now. For example, if you lowered a threshold because partial matches scored unexpectedly high, you might re-tune that threshold given the more faithful scoring. Overall, the upgrade should be smooth: all existing method signatures and return types are unchanged, and only the accuracy of results (and potentially their ordering when ranking matches) has improved.
+
+- Ported from python library [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)
 
 v.2.0.3
 
@@ -54,7 +65,6 @@ v.2.0.0
 As of 2.0.0, all empty strings will return a score of 0. Prior, the partial scoring system would return a score of 100, regardless if the other input had correct value or not. This was a result of the partial scoring system returning an empty set for the matching blocks As a result, this led to incorrrect values in the composite scores; several of them (token set, token sort), relied on the prior value of empty strings.
 
 As a result, many 1.X.X unit test may be broken with the 2.X.X upgrade, but it is within the expertise fo all the 1.X.X developers to recommednd the upgrade to the 2.X.X series regardless, should their version accommodate it or not, as it is closer to the ideal behavior of the library.
-
 
 ## Usage
 
