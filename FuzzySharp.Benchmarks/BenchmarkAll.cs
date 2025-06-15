@@ -9,16 +9,11 @@ namespace Raffinert.FuzzySharp.Benchmarks;
 public class BenchmarkAll
 {
     [Benchmark]
-    public int Ratio1()
+    public int Ratio()
     {
         return Fuzz.Ratio("mysmilarstring", "myawfullysimilarstirng");
     }
 
-    [Benchmark]
-    public int Ratio2()
-    {
-        return Fuzz.Ratio("mysmilarstring", "mysimilarstring");
-    }
 
     [Benchmark]
     public int PartialRatio()
@@ -93,15 +88,9 @@ public class BenchmarkAll
     }
 
     [Benchmark]
-    public int Ratio1Classic()
+    public int RatioClassic()
     {
         return Classic.Fuzz.Ratio("mysmilarstring", "myawfullysimilarstirng");
-    }
-
-    [Benchmark]
-    public int Ratio2Classic()
-    {
-        return Classic.Fuzz.Ratio("mysmilarstring", "mysimilarstring");
     }
 
     [Benchmark]
@@ -197,8 +186,8 @@ public class BenchmarkAll
         return Classic.Process.ExtractOne(Query, Events, static strings => strings[0]);
     }
 
-    private static Levenshtein FuzzySharpLevenshtein = new Levenshtein("chicago cubs vs new york mets");
-    private static Fastenshtein.Levenshtein FastenLevenshteinshtein = new Fastenshtein.Levenshtein("chicago cubs vs new york mets");
+    private static readonly Levenshtein FuzzySharpLevenshtein = new Levenshtein("chicago cubs vs new york mets");
+    private static readonly Fastenshtein.Levenshtein FastenLevenshtein = new Fastenshtein.Levenshtein("chicago cubs vs new york mets");
 
     [Benchmark]
     public int FuzzySharpClassicDistance()
@@ -227,7 +216,7 @@ public class BenchmarkAll
     [Benchmark]
     public int FastenshteinDistanceFrom()
     {
-        return FastenLevenshteinshtein.DistanceFrom("new york mets vs chicago cubs");
+        return FastenLevenshtein.DistanceFrom("new york mets vs chicago cubs");
     }
 
     [Benchmark]
