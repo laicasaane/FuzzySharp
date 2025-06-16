@@ -571,15 +571,13 @@ public sealed partial class LongestCommonSequence
         int segCount = (len1 + 63) / 64;
 
         // --- 2) prepare the \"all-ones up to len1\" mask and state S ---
-        ulong[] mask = new ulong[segCount];
+        ulong[] S = new ulong[segCount];
         for (int i = 0; i < segCount; i++)
-            mask[i] = ulong.MaxValue;
+            S[i] = ulong.MaxValue;
         // clear high bits in the final segment if len1 % 64 != 0
         int rem = len1 & 63;
         if (rem != 0)
-            mask[segCount - 1] = (1UL << rem) - 1;
-
-        ulong[] S = (ulong[])mask.Clone();
+            S[segCount - 1] = (1UL << rem) - 1;
 
         // --- 3) main bit-parallel loop: S = (S + u) | (S - u)  ---
         foreach (T ch in s2)
