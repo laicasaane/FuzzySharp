@@ -13,6 +13,9 @@ To learn more about the war and how you can help, [click here](https://stand-wit
 
 # Raffinert.FuzzySharp
 
+[![nuget version](https://img.shields.io/nuget/v/Raffinert.FuzzySharp.svg?style=flat-square)](https://www.nuget.org/packages/Raffinert.FuzzySharp)
+[![nuget downloads](https://img.shields.io/nuget/dt/Raffinert.FuzzySharp?label=Downloads)](https://www.nuget.org/packages/Raffinert.FuzzySharp)
+
 C# .NET fast fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
