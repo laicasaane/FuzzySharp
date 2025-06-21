@@ -176,9 +176,7 @@ var partialTokenAbbreviation = ScorerCache.Get<PartialTokenAbbreviationScorer>()
 var weighted = ScorerCache.Get<WeightedRatioScorer>();
 ```
 
-🍪 Support the project through [GitHub Sponsors](https://github.com/sponsors/ycherkes) or via [PayPal](https://www.paypal.com/donate/?business=KXGF7CMW8Y8WJ):
-
-[![](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate/?business=KXGF7CMW8Y8WJ).
+🍪 Support the project through [GitHub Sponsors](https://github.com/sponsors/ycherkes) or via [PayPal](https://www.paypal.com/donate/?business=KXGF7CMW8Y8WJ).
 
 ## Credits
 
