@@ -26,16 +26,4 @@ internal static class ThrowHelper
     {
         throw new ArgumentOutOfRangeException("capacity");
     }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static bool ThrowNotSupportedException_ReadOnly_Modification()
-    {
-        throw new NotSupportedException("ReadOnly_Modification");
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static bool ThrowNotSupportedException()
-    {
-        throw new NotSupportedException();
-    }
 }

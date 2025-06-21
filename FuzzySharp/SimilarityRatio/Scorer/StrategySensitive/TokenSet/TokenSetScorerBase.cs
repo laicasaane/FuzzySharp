@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Raffinert.FuzzySharp.Extensions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Raffinert.FuzzySharp.Extensions;
 
 namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive;
 
@@ -14,14 +14,16 @@ public abstract class TokenSetScorerBase : StrategySensitiveScorerBase
 
         var intersection = GetIntersectionAndExcept(tokens1, tokens2);
 
-        var sortedIntersection = string.Join(" ", intersection.OrderBy(s => s));
+        intersection.Sort();
+        
+        var sortedIntersection = string.Join(" ", intersection);
         var sortedDiff1To2     = (sortedIntersection + " " + string.Join(" ", tokens1.OrderBy(s => s))).Trim();
         var sortedDiff2To1     = (sortedIntersection + " " + string.Join(" ", tokens2.OrderBy(s => s))).Trim();
 
         var score1 = Scorer(sortedIntersection, sortedDiff1To2);
         var score2 = Scorer(sortedIntersection, sortedDiff2To1);
         var score3 = Scorer(sortedDiff1To2, sortedDiff2To1);
-            
+
         return Math.Max(score1, Math.Max(score2, score3));
     }
 
