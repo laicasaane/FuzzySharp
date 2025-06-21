@@ -13,7 +13,7 @@ To learn more about the war and how you can help, [click here](https://stand-wit
 
 # Raffinert.FuzzySharp
 
-C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
+C# .NET fast fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
