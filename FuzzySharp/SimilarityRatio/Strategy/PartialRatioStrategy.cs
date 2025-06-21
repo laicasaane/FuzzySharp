@@ -1,60 +1,30 @@
-﻿using System;
-using Raffinert.FuzzySharp.Edits;
+﻿using Raffinert.FuzzySharp.Utils;
+using System;
+using Raffinert.FuzzySharp.SimilarityRatio.Strategy.Generic;
 
-namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy
+namespace Raffinert.FuzzySharp.SimilarityRatio.Strategy;
+
+internal static class PartialRatioStrategy
 {
-    internal static class PartialRatioStrategy
+    /// <summary>
+    /// Searches for the optimal alignment of the shorter span in the longer span
+    /// and returns the partial fuzz.ratio for that alignment, as a value in [0…100].
+    /// </summary>
+    public static int Calculate(string input1, string input2)
     {
-        public static int Calculate(string input1, string input2)
+        if (input1.Length == 0 || input2.Length == 0)
         {
-            if (input1.Length == 0 || input2.Length == 0)
-            {
-                return 0;
-            }
-
-            ReadOnlySpan<char> shorter;
-            ReadOnlySpan<char> longer;
-
-            if (input1.Length < input2.Length)
-            {
-                shorter = input1.AsSpan();
-                longer  = input2.AsSpan();
-            }
-            else
-            {
-                shorter = input2.AsSpan();
-                longer  = input1.AsSpan();
-            }
-
-            MatchingBlock[] matchingBlocks = Levenshtein.GetMatchingBlocks(shorter, longer);
-
-            double maxScore = 0;
-
-            foreach (var matchingBlock in matchingBlocks)
-            {
-                int dist = matchingBlock.DestPos - matchingBlock.SourcePos;
-
-                int longStart = dist > 0 ? dist : 0;
-                int longEnd   = longStart + shorter.Length;
-
-                if (longEnd > longer.Length) longEnd = longer.Length;
-
-                var longSubstr = longer[longStart..longEnd];
-
-                double ratio = Levenshtein.GetRatio(shorter, longSubstr);
-
-                if (ratio > .995)
-                {
-                    return 100;
-                }
-
-                if (ratio > maxScore)
-                {
-                    maxScore = ratio;
-                }
-            }
-
-            return (int)Math.Round(100 * maxScore);
+            return 0;
         }
+            
+        var shorter = input1.AsSpan();
+        var longer = input2.AsSpan();
+
+        SequenceUtils.SwapIfSourceIsLonger(ref shorter, ref longer);
+
+        var alignment = PartialRatioStrategy<char>.PartialRatioAlignment(shorter, longer);
+        var ratio = alignment?.Score ?? 0.0;
+        
+        return (int)Math.Round(ratio);
     }
 }

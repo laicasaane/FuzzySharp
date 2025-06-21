@@ -1,10 +1,8 @@
-﻿using System;
-using Raffinert.FuzzySharp.SimilarityRatio.Strategy;
+﻿using Raffinert.FuzzySharp.SimilarityRatio.Strategy;
 
-namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive
+namespace Raffinert.FuzzySharp.SimilarityRatio.Scorer.StrategySensitive;
+
+public sealed class TokenSortScorer : TokenSortScorerBase
 {
-    public class TokenSortScorer : TokenSortScorerBase
-    {
-        protected override Func<string, string, int> Scorer => DefaultRatioStrategy.Calculate;
-    }
+    protected override FuzzySharp.Scorer Scorer => DefaultRatioStrategy.Calculate;
 }

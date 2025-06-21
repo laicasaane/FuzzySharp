@@ -1,10 +1,47 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
+## Terms of use<sup>[?](https://github.com/Tyrrrz/.github/blob/master/docs/why-so-political.md)</sup>
+
+By using this project or its source code, for any purpose and in any shape or form, you grant your **implicit agreement** to all the following statements:
+
+- You **condemn Russia and its military aggression against Ukraine**
+- You **recognize that Russia is an occupant that unlawfully invaded a sovereign state**
+- You **support Ukraine's territorial integrity, including its claims over temporarily occupied territories of Crimea and Donbas**
+- You **reject false narratives perpetuated by Russian state propaganda**
+
+To learn more about the war and how you can help, [click here](https://stand-with-ukraine.pp.ua). Glory to Ukraine! 🇺🇦
+
 # Raffinert.FuzzySharp
 
-C# .NET fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
+[![nuget version](https://img.shields.io/nuget/v/Raffinert.FuzzySharp.svg?style=flat-square)](https://www.nuget.org/packages/Raffinert.FuzzySharp)
+[![nuget downloads](https://img.shields.io/nuget/dt/Raffinert.FuzzySharp?label=Downloads)](https://www.nuget.org/packages/Raffinert.FuzzySharp)
+
+C# .NET fast fuzzy string matching implementation of Seat Geek's well known python FuzzyWuzzy algorithm. 
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
+Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fastenshtein and Quickenshtein:
+
+Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
+
+| Method                                                          | Mean       | Error      | StdDev    | Ratio | RatioSD | Gen0       | Gen1       | Allocated   | Alloc Ratio |
+|-----------------------------------------------------------------|------------|------------|-----------|-------|---------|------------|------------|-------------|-------------|
+| NaiveDp                                                         | 231.563 ms | 57.5403 ms | 3.1540 ms |  1.00 |    0.02 | 43500.0000 | 34500.0000 | 275312920 B |       1.000 |
+| [FuzzySharp](https://github.com/JakeBayer/FuzzySharp)           | 141.820 ms |  4.0905 ms | 0.2242 ms |  0.61 |    0.01 |          - |          - |   1545732 B |       0.006 |
+| [Fastenshtein](https://github.com/DanHarltey/Fastenshtein)      | 123.356 ms | 13.0959 ms | 0.7178 ms |  0.53 |    0.01 |          - |          - |     34028 B |       0.000 |
+| [Quickenshtein](https://github.com/Turnerj/Quickenshtein)       |  12.918 ms | 12.8046 ms | 0.7019 ms |  0.06 |    0.00 |          - |          - |        12 B |       0.000 |
+| [Raffinert.FuzzySharp](https://github.com/Raffinert/FuzzySharp) |   4.970 ms |  0.3311 ms | 0.0181 ms |  0.02 |    0.00 |          - |          - |      3051 B |       0.000 |
+
+
 # Release Notes:
+v3.0.0 – *Partial Ratio Accuracy and Performance Update*  
+
+- **Fixes multiple bugs in the Partial Ratio implementation** In earlier versions, `Fuzz.PartialRatio` could return suboptimal scores in certain cases (for example, when a short string appeared multiple times in a longer string, it didn’t always pick the highest scoring match).
+
+- **Performance Optimizations:** All distance calculations were rewritten to use bit-parallel algorirms. Additionally, the Levenshtein.Instance, Indel.Instance and LongestCommonSequence.Instance classes may help get max speedup - see BenchmarkAll.FuzzySharpDistanceFrom.
+
+- Bit-parallel implementations highly borrowed from MIT licensed python library [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz).
+
 v.2.0.3
 
 Accent to performance and allocations. See [Benchmark](https://github.com/Raffinert/FuzzySharp/blob/dc2b858dc4cc56d8cdf26411904e255a019b0549/FuzzySharp.Benchmarks/BenchmarkDotNet.Artifacts/results/Raffinert.FuzzySharp.Benchmarks.BenchmarkAll-report-github.md).
@@ -72,7 +109,7 @@ Fuzz.PartialTokenInitialismRatio("NASA", "National Aeronautics Space Administrat
 Fuzz.TokenAbbreviationRatio("bl 420", "Baseline section 420", PreprocessMode.Full);
 40
 Fuzz.PartialTokenAbbreviationRatio("bl 420", "Baseline section 420", PreprocessMode.Full);
-50      
+67      
 ```
 
 
@@ -139,11 +176,15 @@ var partialTokenAbbreviation = ScorerCache.Get<PartialTokenAbbreviationScorer>()
 var weighted = ScorerCache.Get<WeightedRatioScorer>();
 ```
 
+🍪 Support the project through [GitHub Sponsors](https://github.com/sponsors/ycherkes) or via [PayPal](https://www.paypal.com/donate/?business=KXGF7CMW8Y8WJ).
+
 ## Credits
 
 - SeatGeek
 - Adam Cohen
 - David Necas (python-Levenshtein)
+- Jacob Bayer (original FuzzySharp library)
+- Max Bachmann (RapidFuzz)
 - Mikko Ohtamaa (python-Levenshtein)
 - Antti Haapala (python-Levenshtein)
 - Panayiotis (Java implementation I heavily borrowed from)

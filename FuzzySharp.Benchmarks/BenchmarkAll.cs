@@ -9,16 +9,11 @@ namespace Raffinert.FuzzySharp.Benchmarks;
 public class BenchmarkAll
 {
     [Benchmark]
-    public int Ratio1()
+    public int Ratio()
     {
         return Fuzz.Ratio("mysmilarstring", "myawfullysimilarstirng");
     }
 
-    [Benchmark]
-    public int Ratio2()
-    {
-        return Fuzz.Ratio("mysmilarstring", "mysimilarstring");
-    }
 
     [Benchmark]
     public int PartialRatio()
@@ -93,15 +88,9 @@ public class BenchmarkAll
     }
 
     [Benchmark]
-    public int Ratio1Classic()
+    public int RatioClassic()
     {
         return Classic.Fuzz.Ratio("mysmilarstring", "myawfullysimilarstirng");
-    }
-
-    [Benchmark]
-    public int Ratio2Classic()
-    {
-        return Classic.Fuzz.Ratio("mysmilarstring", "mysimilarstring");
     }
 
     [Benchmark]
@@ -179,8 +168,8 @@ public class BenchmarkAll
     private static readonly string[][] Events =
     [
         ["chicago cubs vs new york mets", "CitiField", "2011-05-11", "8pm"],
-        ["new york yankees vs boston red sox", "Fenway Park", "2011-05-11", "8pm"],
-        ["atlanta braves vs pittsburgh pirates", "PNC Park", "2011-05-11", "8pm"]
+            ["new york yankees vs boston red sox", "Fenway Park", "2011-05-11", "8pm"],
+            ["atlanta braves vs pittsburgh pirates", "PNC Park", "2011-05-11", "8pm"]
     ];
 
     private static readonly string[] Query = ["new york mets vs chicago cubs", "CitiField", "2017-03-19", "8pm"];
@@ -197,15 +186,42 @@ public class BenchmarkAll
         return Classic.Process.ExtractOne(Query, Events, static strings => strings[0]);
     }
 
+    private static readonly Levenshtein FuzzySharpLevenshtein = new Levenshtein("chicago cubs vs new york mets");
+    private static readonly Fastenshtein.Levenshtein FastenLevenshtein = new Fastenshtein.Levenshtein("chicago cubs vs new york mets");
+
     [Benchmark]
-    public int LevenshteinDistance()
+    public int FuzzySharpClassicDistance()
     {
-        return Levenshtein.EditDistance("chicago cubs vs new york mets".AsSpan(), "new york mets vs chicago cubs".AsSpan());
+        return Classic.Levenshtein.EditDistance("chicago cubs vs new york mets", "new york mets vs chicago cubs");
+    }
+
+    [Benchmark]
+    public int FuzzySharpDistance()
+    {
+        return Levenshtein.Distance("chicago cubs vs new york mets", "new york mets vs chicago cubs");
     }
 
     [Benchmark]
     public int FastenshteinDistance()
     {
         return Fastenshtein.Levenshtein.Distance("chicago cubs vs new york mets", "new york mets vs chicago cubs");
+    }
+
+    [Benchmark]
+    public int FuzzySharpDistanceFrom()
+    {
+        return FuzzySharpLevenshtein.DistanceFrom("new york mets vs chicago cubs");
+    }
+
+    [Benchmark]
+    public int FastenshteinDistanceFrom()
+    {
+        return FastenLevenshtein.DistanceFrom("new york mets vs chicago cubs");
+    }
+
+    [Benchmark]
+    public int QuickenshteinDistance()
+    {
+        return Quickenshtein.Levenshtein.GetDistance("chicago cubs vs new york mets", "new york mets vs chicago cubs");
     }
 }
