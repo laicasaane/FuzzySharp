@@ -38,6 +38,7 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
 
     private readonly ArrayPool<int> _bucketsPool;
     private readonly ArrayPool<Entry> _entriesPool;
+    private int _size;
 
     [DebuggerDisplay("({key}, {value})->{next}")]
     private struct Entry
@@ -71,19 +72,19 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
         if (capacity < 0)
             ThrowHelper.ThrowCapacityArgumentOutOfRangeException();
 
-        _bucketsPool = ArrayPool<int>.Shared;
-        _entriesPool = ArrayPool<Entry>.Shared;
-
         if (capacity < 2)
             capacity = 2; // 1 would indicate the dummy array
 
-        int size = HashHelpers.PowerOf2(capacity);
-        _buckets = _bucketsPool.Rent(size);
-        _entries = _entriesPool.Rent(size);
+        _size = HashHelpers.PowerOf2(capacity);
 
-        // Clear the rented arrays for correctness
-        Array.Clear(_buckets, 0, size);
-        Array.Clear(_entries, 0, size);
+        _bucketsPool = ArrayPool<int>.Shared;
+        _entriesPool = ArrayPool<Entry>.Shared;
+
+        _buckets = _bucketsPool.Rent(_size);
+        _entries = _entriesPool.Rent(_size);
+
+        Array.Clear(_buckets, 0, _size);
+        Array.Clear(_entries, 0, _size);
     }
 
     /// <summary>
@@ -122,11 +123,11 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
 
         var entries = _entries;
         int[] buckets = _buckets;
-        int bucketMask = buckets.Length - 1;
+        int bucketMask = _size - 1;
         int hash = key.GetHashCode() & bucketMask;
 
         int collisionCount = 0;
-        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        for (int i = buckets[hash] - 1; (uint)i < (uint)_size; i = entries[i].next)
         {
             if (key.Equals(entries[i].key))
                 return true;
@@ -152,11 +153,11 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
 
         var entries = _entries;
         int[] buckets = _buckets;
-        int bucketMask = buckets.Length - 1;
+        int bucketMask = _size - 1;
         int hash = key.GetHashCode() & bucketMask;
 
         int collisionCount = 0;
-        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        for (int i = buckets[hash] - 1; (uint)i < (uint)_size; i = entries[i].next)
         {
             if (key.Equals(entries[i].key))
             {
@@ -164,7 +165,7 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
                 return true;
             }
 
-            if (collisionCount == entries.Length)
+            if (collisionCount == _size)
                 ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
 
             collisionCount++;
@@ -185,7 +186,7 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
 
         var entries = _entries;
         int[] buckets = _buckets;
-        int bucketMask = buckets.Length - 1;
+        int bucketMask = _size - 1;
         int hash = key.GetHashCode() & bucketMask;
 
         int last = -1;
@@ -239,16 +240,16 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
 
         var entries = _entries;
         int[] buckets = _buckets;
-        int bucketMask = buckets.Length - 1;
+        int bucketMask = _size - 1;
         int hash = key.GetHashCode() & bucketMask;
 
         int collisionCount = 0;
-        for (int i = buckets[hash] - 1; (uint)i < (uint)entries.Length; i = entries[i].next)
+        for (int i = buckets[hash] - 1; (uint)i < (uint)_size; i = entries[i].next)
         {
             if (key.Equals(entries[i].key))
                 return ref entries[i].value;
 
-            if (collisionCount == entries.Length)
+            if (collisionCount == _size)
                 ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
 
             collisionCount++;
@@ -261,7 +262,6 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
     private ref TValue AddKey(TKey key, int bucketIndex)
     {
         var entries = _entries;
-        int[] buckets = _buckets;
         int entryIndex;
 
         if (_freeList != -1)
@@ -271,57 +271,59 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
         }
         else
         {
-            if (_entries == InitialEntries || _count == entries.Length)
+            if (_entries == InitialEntries || _count == _size)
             {
                 entries = Resize();
-                buckets = _buckets;
+                bucketIndex = key.GetHashCode() & (_size - 1);
+                // entry indexes were not changed by Resize
             }
 
             entryIndex = _count;
-            _count++;
         }
 
         entries[entryIndex].key = key;
-        entries[entryIndex].next = buckets[bucketIndex] - 1;
-        buckets[bucketIndex] = entryIndex + 1;
-
+        entries[entryIndex].next = _buckets[bucketIndex] - 1;
+        _buckets[bucketIndex] = entryIndex + 1;
+        _count++;
         return ref entries[entryIndex].value;
     }
 
     private Entry[] Resize()
     {
-        int oldSize = _entries == InitialEntries ? 0 : _entries.Length;
+        int oldSize = _entries == InitialEntries ? 0 : _size;
         int newSize = oldSize == 0 ? 2 : oldSize * 2;
-        if ((uint)newSize > (uint)int.MaxValue)
+        if (unchecked((uint)newSize > (uint)int.MaxValue)) // uint cast handles overflow
+        {
             throw new InvalidOperationException("DictionarySlimPooled: Capacity overflow.");
+        }
 
         // Rent new arrays
         var newBuckets = _bucketsPool.Rent(newSize);
         var newEntries = _entriesPool.Rent(newSize);
 
-        // Clear newly rented arrays
+        int count = _count;
         Array.Clear(newBuckets, 0, newSize);
-        Array.Clear(newEntries, 0, newSize);
+        Array.Clear(newEntries, count, newSize - count);
 
-        // Copy existing data
-        if (oldSize > 0)
+        Array.Copy(_entries, 0, newEntries, 0, count);
+
+        // Recompute buckets
+        while (count-- > 0)
         {
-            Array.Copy(_entries, 0, newEntries, 0, _count);
-            // Recompute buckets
-            for (int i = 0; i < _count; i++)
-            {
-                int hash = newEntries[i].key.GetHashCode() & (newSize - 1);
-                newEntries[i].next = newBuckets[hash] - 1;
-                newBuckets[hash] = i + 1;
-            }
-
-            // Return old arrays to pool
-            _entriesPool.Return(_entries, clearArray: true);
-            _bucketsPool.Return(_buckets, clearArray: true);
+            int bucketIndex = newEntries[count].key.GetHashCode() & (newBuckets.Length - 1);
+            newEntries[count].next = newBuckets[bucketIndex] - 1;
+            newBuckets[bucketIndex] = count + 1;
         }
+
+        // Return old arrays to pool
+        _entriesPool.Return(_entries);
+        _bucketsPool.Return(_buckets);
 
         _buckets = newBuckets;
         _entries = newEntries;
+
+        _size = newSize;
+
         return _entries;
     }
 
@@ -363,12 +365,12 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
             }
 
             var entries = _dictionary._entries;
-            while (_index < entries.Length && entries[_index].next < -1)
+            while (_index < _dictionary._size && entries[_index].next < -1)
             {
                 _index++;
             }
 
-            if (_index >= entries.Length)
+            if (_index >= _dictionary._size)
             {
                 Current = default;
                 return false;
@@ -396,6 +398,12 @@ internal sealed class DictionarySlimPooled<TKey, TValue> : IDisposable, IReadOnl
     }
 
     public void Dispose()
+    {
+        Clear();
+        GC.SuppressFinalize(this);
+    }
+
+    ~DictionarySlimPooled()
     {
         Clear();
     }
