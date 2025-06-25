@@ -20,7 +20,7 @@ C# .NET fast fuzzy string matching implementation of Seat Geek's well known pyth
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
-Benchcmark comparison of naive DP implementation (base line), FuzzySharp, Fastenshtein and Quickenshtein:
+Benchmark comparison of naive DP implementation (baseline), FuzzySharp, Fastenshtein and Quickenshtein:
 
 Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
 
@@ -40,9 +40,9 @@ v3.0.0 – *Partial Ratio Accuracy and Performance Update*
 
 - **Fixes multiple bugs in the Partial Ratio implementation** In earlier versions, `Fuzz.PartialRatio` could return suboptimal scores in certain cases (for example, when a short string appeared multiple times in a longer string, it didn’t always pick the highest scoring match).
 
-- **Performance Optimizations:** All distance calculations were rewritten to use bit-parallel algorirms. Additionally, the Levenshtein.Instance, Indel.Instance and LongestCommonSequence.Instance classes may help get max speedup - see BenchmarkAll.FuzzySharpDistanceFrom.
+- **Performance Optimizations:** All distance calculations were rewritten to use bit-parallel algorithms. Additionally, the Levenshtein.Instance, Indel.Instance and LongestCommonSequence.Instance classes may help get max speedup - see [BenchmarkAll.FuzzySharpDistanceFrom](https://github.com/Raffinert/FuzzySharp/blob/master/FuzzySharp.Benchmarks/BenchmarkAll.cs#L213).
 
-- Bit-parallel implementations highly borrowed from MIT licensed python library [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz).
+- Bit-parallel implementations are highly borrowed from the MIT-licensed Python library [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz).
 
 v.2.0.3
 
