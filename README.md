@@ -20,7 +20,7 @@ C# .NET fast fuzzy string matching implementation of Seat Geek's well known pyth
 
 Refined version of original [FuzzySharp](https://github.com/JakeBayer/FuzzySharp). The original one looks abandoned.
 
-Benchmark comparison of naive DP implementation (baseline), FuzzySharp, Fastenshtein and Quickenshtein:
+Benchmark comparison of naive DP Levenshtein distance calculation (baseline), FuzzySharp, Fastenshtein and Quickenshtein:
 
 Random words of 3 to 1024 random chars (LevenshteinLarge.cs):
 
