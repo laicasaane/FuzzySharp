@@ -184,11 +184,10 @@ var weighted = ScorerCache.Get<WeightedRatioScorer>();
 
 ## Credits
 
-- SeatGeek
-- Adam Cohen
-- David Necas (python-Levenshtein)
-- Jacob Bayer (original FuzzySharp library)
-- Max Bachmann (RapidFuzz)
-- Mikko Ohtamaa (python-Levenshtein)
-- Antti Haapala (python-Levenshtein)
-- Panayiotis (Java implementation I heavily borrowed from)
+- [Adam Cohen (SeatGeek)](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/)
+- [Antti Haapala (python-Levenshtein)](https://github.com/ztane)
+- [David Necas (python-Levenshtein)](http://publications.physics.muni.cz/author/yeti)
+- [Jacob Bayer (original FuzzySharp library)](https://github.com/JakeBayer/FuzzySharp)
+- [Max Bachmann (RapidFuzz)](https://github.com/rapidfuzz/RapidFuzz)
+- [Mikko Ohtamaa (python-Levenshtein)](https://github.com/miohtama/python-Levenshtein)
+- [Panayiotis (Java implementation I heavily borrowed from)](https://github.com/xdrop)
