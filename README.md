@@ -184,7 +184,7 @@ var weighted = ScorerCache.Get<WeightedRatioScorer>();
 
 ## Credits
 
-- [Adam Cohen (SeatGeek)](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/)
+- [Adam Cohen (seatgeek/fuzzywuzzy)](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/)
 - [Antti Haapala (python-Levenshtein)](https://github.com/ztane)
 - [David Necas (python-Levenshtein)](http://publications.physics.muni.cz/author/yeti)
 - [Jacob Bayer (original FuzzySharp library)](https://github.com/JakeBayer/FuzzySharp)
